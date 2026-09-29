@@ -1,0 +1,15 @@
+# Arduino build output
+build/
+*.bin
+*.elf
+*.map
+
+# Session logs from the SD card (keep them out of the repository by default)
+*.CSV
+*.csv
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
