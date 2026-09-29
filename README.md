@@ -8,8 +8,8 @@ A motion logger for rowing, and a web viewer to analyse what it records.
 ## Folder layout
 
 ```
-firmware/RowLog/RowLog.ino   the firmware (the folder name must match the file name)
-firmware/platformio.ini      PlatformIO project that builds that same file
+firmware/RowLog/             the firmware (see below)
+firmware/platformio.ini      PlatformIO project that builds it
 docs/index.html              RowLog Viewer, the whole app in one file
 docs/figures/                images for the viewer's "Reference figure" panel (see below)
 ```
@@ -18,7 +18,23 @@ The viewer lives in `docs/` so GitHub Pages can publish it directly.
 
 ## Building the firmware
 
-There is one copy of the firmware, `firmware/RowLog/RowLog.ino`. Build it with either the Arduino IDE or PlatformIO; changes made in one show up in the other.
+There is one copy of the firmware, in `firmware/RowLog/`. Build it with either the Arduino IDE or PlatformIO; both compile the same files.
+
+| File | What it does |
+|---|---|
+| `rowlog_config.h` | **settings and pins**: the file to edit |
+| `main.cpp` | `setup()`, `loop()`, modes, status line, commands from the app and USB |
+| `imu.*` | BMI160 set-up and the FIFO sampler task |
+| `tapzero.*` | tap-to-zero calibration (oar mode) |
+| `sdlog.*` | SD card and CSV logging |
+| `blelink.*` | Bluetooth LE service for the viewer |
+| `strokerate.*` | on-device stroke rate and boat metrics |
+| `boatmotion.*` | boat-mode fore-aft acceleration |
+| `sonify.*` | speaker sonification and its settings |
+| `oled.*` | OLED display |
+| `ledbutton.*` | status LED and BOOT button |
+| `rowlog.h` | types and state shared by the modules |
+| `RowLog.ino` | empty stub: the Arduino IDE needs a `<folder>.ino` to open the project |
 
 ### With PlatformIO
 
@@ -35,7 +51,7 @@ From a terminal in the `firmware` folder: `pio run` (build), `pio run -t upload`
 
 1. Arduino IDE 2, board package **esp32 by Espressif** 3.x (tested to compile with 3.3.2).
 2. Library Manager: **U8g2** by olikraus (only needed with `ENABLE_OLED 1`).
-3. Open `firmware/RowLog/RowLog.ino`.
+3. Open `firmware/RowLog/RowLog.ino`. The IDE shows all the files as tabs.
 4. Tools menu:
    - Board: **ESP32C3 Dev Module** (or your C3 board)
    - USB CDC On Boot: **Enabled**
