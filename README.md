@@ -130,7 +130,7 @@ The `REFERENCE_FIGURES` list near the top of `docs/js/model.js` has slots for pu
 
 ## Publishing the viewer with GitHub Pages
 
-Settings → Pages → Build and deployment → Source: **Deploy from a branch**, Branch: **main**, folder **/docs** → Save. After a minute the viewer is live at `https://petrowlium.github.io/RowLogger/`, over https, so Bluetooth and USB work. On the free GitHub plan, Pages only works for public repositories.
+Settings → Pages → Build and deployment → Source: **Deploy from a branch**, Branch: **main**, folder **/docs** → Save. After a minute the viewer is live at `https://lpverheij.github.io/RowLogger/`, over https, so Bluetooth and USB work. On the free GitHub plan, Pages only works for public repositories.
 
 ## Log format
 
