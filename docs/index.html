@@ -118,6 +118,8 @@ button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
 .vfoot{position:absolute;left:12px;right:12px;bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:11.5px;color:var(--muted);pointer-events:none}
 .vfoot label{display:flex;align-items:center;gap:6px;pointer-events:auto}
 .vfoot .seg{pointer-events:auto}
+.vfoot input[type=range]{width:80px;accent-color:var(--accent)}
+.vfoot output{font:500 11px var(--mono);min-width:3.6em}
 .vfoot .seg button{padding:2px 9px;min-height:26px;font-size:12px}
 .vfoot input[type=number]{width:4.2em;font:500 12px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 5px}
 .hud b.sm{font-size:17px;line-height:1.45}
@@ -178,6 +180,7 @@ button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
       <div class="vfoot">
         <div class="seg" role="group" aria-label="Boat movement"><span>Movement</span><button id="bmRel" aria-pressed="true">Relative</button><button id="bmAbs" aria-pressed="false">Absolute</button></div>
         <label id="bAvgLbl" hidden>Average speed <input type="number" id="bAvgSpd" value="4.0" min="1" max="7" step="0.1" aria-describedby="bNote"> m/s</label>
+        <label title="Holds the blades above the water for this long after the oar reverses. Animation only: the data isn't changed.">Catch delay <input type="range" id="catchDelay" min="0" max="250" step="10" value="0" aria-describedby="bNote"><output id="catchDelayOut">0 ms</output></label>
         <label>Exaggerate <select id="boatExag"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="10">10×</option></select></label>
       </div>
     </div>
@@ -1662,16 +1665,28 @@ function strokePhase(i){ // {drive:0..1} during the drive, {rec:0..1} during the
 }
 // Pose of the 3D sculler: examples replay the exact simulated technique; recorded sessions use a
 // standard legs-trunk-arms sequence timed to the detected catch and finish.
+// length of the current drive (s): exact for the examples (from the model's stroke phase),
+// from the detected catch and finish otherwise
+function driveDuration(i,u){
+  const t=S.t.a;
+  if(src&&src.sp&&src.n===S.n&&u>0.02){let j=i;while(j>0&&src.sp[j-1]<=src.sp[j]&&src.sp[j-1]<1)j--;return Math.max(0.3,(t[i]-t[j])/u)}
+  const k=S.strokeAt(i);return k>=0&&S.strokes[k].valid?t[S.strokes[k].f]-t[S.strokes[k].c]:1;
+}
+const catchDelayS=()=>(+($("catchDelay")&&$("catchDelay").value)||0)/1000;
 function scullerState(i){
   let tech=TECH.generic,ph=null;
   if(src&&src.sp&&src.n===S.n){tech=TECH[src.tech]||tech;const c=src.sp[i];ph=c<1?{drive:c}:{rec:Math.min(1,c-1)}}
   else ph=strokePhase(i);
   const pose=ph?techPose(tech,ph):{legs:0.45,trunk:4,arms:0,lmin:tech.body.lmin};
-  // blade: in the water from entry to exit of the force curve, feathered through the recovery
+  // blade: in the water from entry to exit of the force curve; the artificial catch delay (animation
+  // only) holds it above the water for that long after the oar reverses. Feathered quickly after
+  // the release (~0.1 s), squared again before the catch.
   let depth=0.03,feather=1;
   if(ph&&ph.drive!==undefined){const f=tech.force,u=ph.drive;
-    depth=-0.12*smooth5((u-(f.in-0.03))/0.05)*(1-smooth5((u-f.out)/0.04))+0.1*(1-smooth5((u-(f.in-0.03))/0.05));feather=0}
-  else if(ph){const q=ph.rec;depth=0.16*Math.sin(Math.PI*Math.min(1,q/0.97));feather=smooth5((q-0.04)/0.12)*(1-smooth5((q-0.78)/0.16))}
+    const dT=driveDuration(i,u);
+    const din=f.in+catchDelayS()/Math.max(0.3,dT);              // entry, as a fraction of the drive
+    depth=-0.12*smooth5((u-(din-0.03))/0.05)*(1-smooth5((u-f.out)/0.04))+0.1*(1-smooth5((u-(din-0.03))/0.05));feather=0}
+  else if(ph){const q=ph.rec;depth=0.16*Math.sin(Math.PI*Math.min(1,q/0.97));feather=smooth5((q-0.005)/0.06)*(1-smooth5((q-0.78)/0.16))}
   return {tech,ph,pose,J:bodyJoints(pose),depth,feather,inWater:!!(ph&&ph.drive!==undefined&&depth<-0.03)};
 }
 function drawBoat3D(){
@@ -1771,7 +1786,15 @@ function drawBoat3D(){
   poly([[hx-0.12,-0.11,sz],[hx+0.1,-0.11,sz],[hx+0.1,0.11,sz],[hx-0.12,0.11,sz]].map(B),C.hull,1);
   for(const sg of [1,-1])line([V(J.heel,sg*0.09),V(J.knee,sg*0.1),V(J.hip,sg*0.09)].map(B),C.ink,3);
   line([V(J.hip),V(J.sh)].map(B),C.ink,4.5);
-  for(let n=0;n<2;n++){const sg=n?-1:1;line([B(V(J.sh,sg*0.18)),B(V(J.elbow,sg*0.24)),B(handles[n])],C.ink,2.2)}
+  // arms: the elbow sits where upper arm and forearm (half the arm length each) meet, bent outward
+  // (and a little down and back), so the arms are straight at the catch and the elbows flare out
+  // to the sides as the hands come in at the finish
+  const elbow3=(sh3,h3,sg)=>{const d=[h3[0]-sh3[0],h3[1]-sh3[1],h3[2]-sh3[2]],dl=Math.hypot(d[0],d[1],d[2])||1e-6;
+    // bend follows the arm draw of the pose: 0 = straight (catch, drive start), 1 = drawn in (finish)
+    const m=[(sh3[0]+h3[0])/2,(sh3[1]+h3[1])/2,(sh3[2]+h3[2])/2],r=0.2*smooth5(st.pose.arms),u=d.map(x=>x/dl);
+    let q=[0.3,sg,-0.1];const kq=dot(q,u);q=norm([q[0]-kq*u[0],q[1]-kq*u[1],q[2]-kq*u[2]]);
+    return [m[0]+r*q[0],m[1]+r*q[1],m[2]+r*q[2]]};
+  for(let n=0;n<2;n++){const sg=n?-1:1,s3=V(J.sh,sg*0.18);line([B(s3),B(elbow3(s3,handles[n],sg)),B(handles[n])],C.ink,2.2)}
   const head=P(B(V(J.head)));if(head){g.fillStyle=C.ink;g.beginPath();g.arc(head[0],head[1],Math.max(4,F*0.1/camB.dist),0,7);g.fill()}
   // acceleration arrow above the boat
   const a=S.slp.a[i],ax0=B([0.5,0,1.35]),ax1=[ax0[0]+a*0.35,ax0[1],ax0[2]];
@@ -1911,6 +1934,7 @@ for(const id of ["ctl","cSweep","cVert","cFeather","ctlB","cSurge","cVel","cSet"
   $("boatExag").onchange=()=>boatMotionUi();
   $("bmRel").onclick=()=>{boatAbs=false;boatMotionUi()};$("bmAbs").onclick=()=>{boatAbs=true;boatMotionUi()};
   $("bAvgSpd").addEventListener("input",()=>dirty=true);
+  $("catchDelay").addEventListener("input",()=>{$("catchDelayOut").textContent=$("catchDelay").value+" ms";dirty=true});
   boatMotionUi();
 }
 let dragN=0;
