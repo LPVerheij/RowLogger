@@ -8,7 +8,8 @@ A motion logger for rowing, and a web viewer to analyse what it records.
 ## Folder layout
 
 ```
-firmware/RowLog/RowLog.ino   Arduino sketch (the folder name must match the file name)
+firmware/RowLog/RowLog.ino   the firmware (the folder name must match the file name)
+firmware/platformio.ini      PlatformIO project that builds that same file
 docs/index.html              RowLog Viewer, the whole app in one file
 docs/figures/                images for the viewer's "Reference figure" panel (see below)
 ```
@@ -16,6 +17,21 @@ docs/figures/                images for the viewer's "Reference figure" panel (s
 The viewer lives in `docs/` so GitHub Pages can publish it directly.
 
 ## Building the firmware
+
+There is one copy of the firmware, `firmware/RowLog/RowLog.ino`. Build it with either the Arduino IDE or PlatformIO; changes made in one show up in the other.
+
+### With PlatformIO
+
+1. Install VS Code and the **PlatformIO IDE** extension.
+2. *File → Open Folder…* and choose the **`firmware`** folder (the one with `platformio.ini`).
+3. Click the ✓ (Build) in the status bar. The first build downloads the ESP32 platform, compiler and the U8g2 library, which takes a few minutes.
+4. Connect the board over USB and click → (Upload), then the plug icon (Serial Monitor, 115200 baud).
+
+From a terminal in the `firmware` folder: `pio run` (build), `pio run -t upload` (upload), `pio device monitor` (serial monitor).
+
+`platformio.ini` pins the board settings the Arduino IDE needs by hand: ESP32-C3, USB CDC on boot, default partitions, Arduino core 3.3.2 (through the [pioarduino](https://github.com/pioarduino/platform-espressif32) platform, as the standard PlatformIO platform only offers core 2.x) and U8g2 2.37.1. The serial monitor decodes crash backtraces into function names and line numbers.
+
+### With the Arduino IDE
 
 1. Arduino IDE 2, board package **esp32 by Espressif** 3.x (tested to compile with 3.3.2).
 2. Library Manager: **U8g2** by olikraus (only needed with `ENABLE_OLED 1`).
@@ -56,7 +72,7 @@ The `REFERENCE_FIGURES` list near the top of the viewer's script has slots for p
 
 ## Publishing the viewer with GitHub Pages
 
-Settings → Pages → Build and deployment → Source: **Deploy from a branch**, Branch: **main**, folder **/docs** → Save. After a minute the viewer is live at `https://<your-username>.github.io/<repository-name>/`, over https, so Bluetooth and USB work.
+Settings → Pages → Build and deployment → Source: **Deploy from a branch**, Branch: **main**, folder **/docs** → Save. After a minute the viewer is live at `https://petrowlium.github.io/RowLogger/`, over https, so Bluetooth and USB work. On the free GitHub plan, Pages only works for public repositories.
 
 ## Log format
 
