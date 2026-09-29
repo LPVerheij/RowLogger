@@ -76,6 +76,11 @@
       <a role="tab" href="#/analysis/3d" data-tab="3d">3D</a>
       <a role="tab" href="#/analysis/plots" data-tab="plots">Over time</a>
     </div>
+    <div class="exswitch" id="exSwitch" hidden>
+      <span class="exlbl" id="exLbl">Example</span>
+      <div class="exchips" id="exChips" role="radiogroup" aria-labelledby="exLbl"></div>
+      <div class="exstep"><button id="exPrev" aria-label="Previous example" title="Previous example ( [ )">‹</button><button id="exNext" aria-label="Next example" title="Next example ( ] )">›</button></div>
+    </div>
   </div>
   <p class="exnote" id="exNote" hidden></p>
 
@@ -341,6 +346,7 @@
       <li><b>Open a recording</b> from the SD card on the <a href="#/">Home</a> page (or drop the file on the page), <b>connect</b> the sensor on the <a href="#/device">Device</a> page, or pick an <a href="#/examples">example</a>.</li>
       <li>The <a href="#/analysis">Analysis</a> page has three views. <b>Overview</b>: the shape of the stroke and its numbers. <b>3D</b>: the oar or the boat and sculler moving. <b>Over time</b>: the whole session as charts.</li>
       <li>The <b>player</b> at the bottom plays the session back. Click or drag on any chart to jump; <kbd>Space</kbd> plays and pauses; on the stroke profile, <kbd>←</kbd> <kbd>→</kbd> step 1 % of the stroke.</li>
+      <li>With an example loaded, the row of <b>example buttons</b> under the title switches straight to another one, keeping the view and the moment in the session, so you can compare techniques side by side in time. <kbd>[</kbd> and <kbd>]</kbd> step through them.</li>
     </ol>
   </div>
 

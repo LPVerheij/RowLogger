@@ -60,6 +60,7 @@ function route(){
     for(const a of document.querySelectorAll("[role=tab]")){const on=a.dataset.tab===tab;a.setAttribute("aria-selected",String(on));a.tabIndex=on?0:-1}
   }
   if(page==="home")sessionUi();
+  if(page==="analysis")showChip();
   // the Analysis entries in the menus go back to the view that was open last
   for(const a of document.querySelectorAll('[data-nav="analysis"]'))a.href=lastTab==="overview"?"#/analysis":"#/analysis/"+lastTab;
   const sect=page==="help"&&parts[1]&&$("h-"+parts[1]);
@@ -101,7 +102,32 @@ function loadExample(k){
   else{loadColumns(makeBoatDemo(k),BOAT_EXAMPLES[k].name,"demo");refForExample(k)}
   markExample(k);
 }
-function markExample(k){for(const c of document.querySelectorAll(".excard"))c.classList.toggle("on",c.dataset.ex===k)}
+function markExample(k){
+  for(const c of document.querySelectorAll(".excard"))c.classList.toggle("on",c.dataset.ex===k);
+  for(const b of document.querySelectorAll("#exChips button")){const on=b.dataset.ex===k;b.setAttribute("aria-checked",String(on));b.tabIndex=on?0:-1}
+  $("exSwitch").hidden=!k;
+  showChip();
+}
+function showChip(){   // keep the selected example in view in the scrolling row (phones)
+  const box=$("exChips"),b=box.querySelector('[aria-checked="true"]');
+  if(b&&box.clientWidth)box.scrollTo({left:b.offsetLeft-(box.clientWidth-b.offsetWidth)/2});
+}
+// Switch to another example from the Analysis page: stay on the same view, at the same moment
+// of the session, and keep playing if it was playing, so techniques can be compared directly.
+function switchExample(k){
+  if(!k||(k===exKey&&mode==="demo"))return;
+  const wasPlaying=playing,tc=S&&S.n?S.t.a[cursor]:null;
+  loadExample(k);
+  if(tc!=null&&S.n)cursor=S.idxAt(Math.min(tc,S.t.a[S.n-1]));
+  if(wasPlaying){playing=true;$("playBtn").textContent="Pause"}
+  dirty=true;
+}
+function stepExample(d){
+  const keys=EXAMPLE_LIST.map(x=>x[0]),i=keys.indexOf(exKey);
+  switchExample(keys[(i+d+keys.length)%keys.length]);
+}
+// short names for the switcher
+const EX_SHORT={oar:"Oar",front:"Front-loaded",late:"Late peak",hump:"Mid-drive hump",amateur:"Amateur"};
 function buildExamples(){
   for(const [k,kind,ex] of EXAMPLE_LIST){
     const c=document.createElement("article");c.className="card excard";c.dataset.ex=k;
@@ -119,6 +145,18 @@ function buildExamples(){
     a.href=url;a.target="_blank";a.rel="noopener";a.textContent=txt;li.append(a);ul.append(li)}
 }
 buildExamples();
+{ const box=$("exChips");
+  for(const [k,kind,ex] of EXAMPLE_LIST){
+    const b=document.createElement("button");b.dataset.ex=k;b.setAttribute("role","radio");b.setAttribute("aria-checked","false");
+    const lvl=kind==="Oar"?"Oar sensor":ex.name.split(" · ")[0];
+    b.innerHTML="<small></small><span></span>";b.firstChild.textContent=lvl;b.lastChild.textContent=EX_SHORT[k]||ex.name;
+    b.title=ex.name;b.onclick=()=>switchExample(k);
+    b.addEventListener("keydown",e=>{if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;e.preventDefault();
+      stepExample(e.key==="ArrowRight"?1:-1);const n=box.querySelector('[aria-checked="true"]');if(n)n.focus()});
+    box.append(b);
+  }
+  $("exPrev").onclick=()=>stepExample(-1);$("exNext").onclick=()=>stepExample(1);
+}
 
 // ---------------------------------------------------------------- theme
 function setTheme(t){
@@ -216,8 +254,9 @@ addEventListener("dragleave",()=>{if(--dragN<=0){dragN=0;$("drop").hidden=true}}
 addEventListener("dragover",e=>e.preventDefault());
 addEventListener("drop",e=>{e.preventDefault();dragN=0;$("drop").hidden=true;const f=e.dataTransfer.files[0];if(f)openFile(f)});
 addEventListener("keydown",e=>{
-  if(document.body.dataset.page!=="analysis"||e.target.closest("input,select,textarea,button,a,[role=tab]"))return;
-  if(e.code==="Space"){e.preventDefault();$("playBtn").click()}});
+  if(document.body.dataset.page!=="analysis"||e.target.closest("input,select,textarea"))return;
+  if((e.key==="["||e.key==="]")&&mode==="demo"){e.preventDefault();stepExample(e.key==="]"?1:-1)}
+  else if(e.code==="Space"&&!e.target.closest("button,a,[role=tab]")){e.preventDefault();$("playBtn").click()}});
 addEventListener("resize",()=>dirty=true);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>dirty=true);
 new MutationObserver(()=>dirty=true).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});

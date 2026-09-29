@@ -78,6 +78,7 @@ input[type=number]{font:500 13px var(--mono);color:var(--ink);background:var(--p
 /* ---------------------------------------------------------------- pages */
 main{max-width:1280px;margin:0 auto;padding:18px var(--gut) 0}
 .page{display:flex;flex-direction:column;gap:14px}
+.page>*{min-width:0}
 .ptitle{font:600 32px/1.1 var(--display);letter-spacing:.01em}
 .lead{max-width:75ch;color:var(--muted);font-size:15px}
 .panel,.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);min-width:0}
@@ -109,13 +110,24 @@ a.hint{color:var(--accent)}
 
 /* analysis */
 .sessbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
-.sessmeta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;min-width:0}
+.sessmeta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;min-width:0;flex:1 1 100%}
 .sessmeta b{font:600 22px/1.2 var(--display)}
 .tabs{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px;gap:2px}
 .tabs a{padding:6px 16px;border-radius:6px;color:var(--muted);text-decoration:none;font-weight:500;text-align:center}
 .tabs a:hover{color:var(--ink)}
 .tabs a[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
 .exnote{color:var(--muted);font-size:13.5px;max-width:95ch}
+.exswitch{display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 400px;justify-content:flex-end}
+.exlbl{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);flex:none}
+.exchips{position:relative;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0;padding:2px}
+.exchips::-webkit-scrollbar{display:none}
+.exchips button{flex:none;flex-direction:column;align-items:flex-start;gap:0;padding:4px 12px;min-height:40px;border-radius:8px;line-height:1.15;text-align:left}
+.exchips button small{font:500 10px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.exchips button span{font-weight:600}
+.exchips button[aria-checked="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.exchips button[aria-checked="true"] small{color:inherit;opacity:.8}
+.exstep{display:flex;gap:4px;flex:none}
+.exstep button{min-width:36px;min-height:40px;padding:0;font-size:20px;line-height:1}
 .exsrc a{color:var(--accent)}
 .tabpane{display:flex;flex-direction:column;gap:14px}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
@@ -250,7 +262,7 @@ body[data-kind="oar"] .player{grid-template-columns:auto auto minmax(0,1fr) auto
   .player .spd span{display:none}
   .player select{min-height:30px;padding:2px 6px}
   .player #sndQuick{grid-area:snd;min-height:30px;padding:2px 10px}
-  .sessbar{flex-direction:column;align-items:stretch}
+  .sessbar{flex-direction:column;flex-wrap:nowrap;align-items:stretch}
   .tabs{display:grid;grid-template-columns:repeat(3,1fr)}
   .tabs a{padding:8px 4px}
   .view{aspect-ratio:4/3}
@@ -272,6 +284,8 @@ body[data-kind="oar"] .player{grid-template-columns:auto auto minmax(0,1fr) auto
   .start b{font-size:19px}
   .start span{font-size:13px}
   .sessmeta b{font-size:19px}
+  .exswitch{margin-inline:calc(-1 * var(--gut));padding-inline:var(--gut);gap:6px;flex:none;justify-content:flex-start}
+  .exlbl,.exstep{display:none}
   #exNote{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;cursor:pointer}
   #exNote.open{display:block}
   .gloss{grid-template-columns:1fr}
