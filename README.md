@@ -8,8 +8,10 @@ A motion logger for rowing, and a web viewer to analyse what it records.
 ## Folder layout
 
 ```
-firmware/RowLog/             the firmware (see below)
+firmware/RowLog/             the firmware, as modules (see below): edit these
 firmware/platformio.ini      PlatformIO project that builds it
+firmware/RowLogStandalone/   the same firmware as one .ino file, generated from the modules
+tools/make_standalone.py     regenerates that file
 docs/index.html              RowLog Viewer, the whole app in one file
 docs/figures/                images for the viewer's "Reference figure" panel (see below)
 ```
@@ -35,6 +37,16 @@ There is one copy of the firmware, in `firmware/RowLog/`. Build it with either t
 | `ledbutton.*` | status LED and BOOT button |
 | `rowlog.h` | types and state shared by the modules |
 | `RowLog.ino` | empty stub: the Arduino IDE needs a `<folder>.ino` to open the project |
+
+### Single-file version
+
+`firmware/RowLogStandalone/RowLogStandalone.ino` is the whole firmware in one file, handy for sharing or for opening a single file in the Arduino IDE. It's generated from the modules, so don't edit it: change the modules, then run
+
+```
+python3 tools/make_standalone.py
+```
+
+and commit both. `python3 tools/make_standalone.py --check` tells you whether it's up to date.
 
 ### With PlatformIO
 
