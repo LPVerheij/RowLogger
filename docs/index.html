@@ -1764,7 +1764,11 @@ function drawBoat3D(){
     handles.push(at(-IN));
     line([B(at(-IN)),B(at(OUT-BL))],C.ink,2.4);
     // blade: squared (vertical) on the drive, flat on the recovery
-    const hz=norm(cross(dir,[0,0,1])),vz=cross(hz,dir),fe=st.feather*Math.PI/2;
+    // blade frame, the same on both sides: vz = up (blade squared), hz = horizontal toward the bow.
+    // Feathering turns the top edge toward the bow, so the face ends up facing up on both sides.
+    let hz=norm(cross(dir,[0,0,1]));if(hz[0]<0)hz=hz.map(x=>-x);
+    let vz=cross(hz,dir);if(vz[2]<0)vz=vz.map(x=>-x);
+    const fe=st.feather*Math.PI/2;
     const bu=[vz[0]*Math.cos(fe)+hz[0]*Math.sin(fe),vz[1]*Math.cos(fe)+hz[1]*Math.sin(fe),vz[2]*Math.cos(fe)+hz[2]*Math.sin(fe)];
     const bq=[[OUT-BL,-0.55],[OUT,-1],[OUT,1],[OUT-BL,0.55]].map(([d,e])=>{const p=at(d);return B([p[0]+bu[0]*e*BW/2,p[1]+bu[1]*e*BW/2,p[2]+bu[2]*e*BW/2])});
     const c=at(OUT-BL/2),wq=P([c[0]+dx,c[1],0]);
