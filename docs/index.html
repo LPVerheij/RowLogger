@@ -1,0 +1,1863 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>RowLog Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#EDF1F0; --panel:#FFFFFF; --ink:#12242A; --muted:#5B7076; --line:#D3DDDC; --grid:#E4EBEA;
+  --accent:#0B6E8A; --accent-ink:#FFFFFF; --blade:#D18700; --water:#B9D6DD; --hull:#8C9DA1;
+  --ok:#2E7D4F; --warn:#B26A00; --bad:#B3261E;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0C1619; --panel:#122226; --ink:#DCE8E9; --muted:#8FA5AA; --line:#23383D; --grid:#1A2D32;
+    --accent:#4DB3CF; --accent-ink:#06171C; --blade:#F2AA1F; --water:#1D4652; --hull:#5E767B;
+    --ok:#5CC389; --warn:#E6A23C; --bad:#F2766B;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0C1619; --panel:#122226; --ink:#DCE8E9; --muted:#8FA5AA; --line:#23383D; --grid:#1A2D32;
+  --accent:#4DB3CF; --accent-ink:#06171C; --blade:#F2AA1F; --water:#1D4652; --hull:#5E767B;
+  --ok:#5CC389; --warn:#E6A23C; --bad:#F2766B;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);margin:0}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:14px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.brand{font:600 26px/1 var(--display);letter-spacing:.02em;display:flex;align-items:baseline;gap:8px}
+.brand small{font:500 12px var(--body);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.sources{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+button,select,.filebtn{font:500 13px var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;min-height:34px}
+button:hover,.filebtn:hover,select:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,.filebtn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:500}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.chip.live i{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.chip.err i{background:var(--bad)}
+.msg{color:var(--warn)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
+@media (max-width:900px){.main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.view{position:relative;aspect-ratio:16/10;max-width:100%;overflow:hidden;touch-action:none}
+.view canvas{width:100%;height:100%;display:block;cursor:grab}
+.hud{position:absolute;left:12px;top:10px;display:flex;gap:16px;pointer-events:none}
+.hud div{display:flex;flex-direction:column}
+.hud span{font:500 10px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hud b{font:600 24px/1.05 var(--display);font-variant-numeric:tabular-nums}
+.views{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+.views button{padding:4px 9px;min-height:28px;font-size:12px}
+.side{display:flex;flex-direction:column;gap:14px}
+.stats{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.stats h3,.plots h3,.bp h3,.profile h3{margin:0;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.statgrid{display:grid;grid-template-columns:auto repeat(2,1fr);gap:4px 12px;align-items:baseline;font-variant-numeric:tabular-nums}
+.statgrid .h{font:500 11px var(--body);color:var(--muted);text-align:right}
+.statgrid .l{color:var(--muted);font-size:13px}
+.statgrid .v{font:600 26px/1.1 var(--display);text-align:right}
+.statgrid .v small{font:500 13px var(--body);color:var(--muted);margin-left:2px}
+.statgrid .v.cur{color:var(--accent)}
+.bp{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.bp canvas{width:100%;height:190px;display:block}
+.transport{padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.transport .time{font:500 14px var(--mono);font-variant-numeric:tabular-nums;min-width:128px}
+.transport input[type=range]{flex:1 1 240px;accent-color:var(--accent)}
+.transport label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.plots{padding:10px 14px 14px;display:flex;flex-direction:column;gap:8px}
+.plots canvas{width:100%;display:block;cursor:crosshair;touch-action:none}
+canvas.tl{height:58px}
+canvas.pl{height:130px}
+details.panel{padding:12px 16px}
+details summary{cursor:pointer;font-weight:600}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 20px;margin-top:12px}
+.settings label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.settings select,.settings input{width:100%}
+.settings input[type=number]{font:500 13px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.help{color:var(--muted);font-size:13px;max-width:78ch;display:flex;flex-direction:column;gap:6px}
+.help p{margin:0}
+code{font:12px var(--mono);background:var(--grid);padding:1px 5px;border-radius:4px}
+.device{padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.device .txt{font:500 13px var(--mono);flex:1 1 200px}
+.vm{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:12px;color:var(--muted)}
+.vm select{padding:4px 8px;min-height:30px}
+.profile{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.profile canvas{width:100%;display:block}
+#cProf{height:264px}#cProfV{height:164px}
+.statgrid .v small.u{font-size:11px}
+.setgroup{grid-column:1/-1;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.snd{display:grid;grid-template-columns:auto minmax(0,1fr) 78px;gap:8px 10px;align-items:center;font-size:13px}
+.snd label{color:var(--muted)}
+.snd input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.snd output{font:500 12px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.sndrow{display:flex;flex-wrap:wrap;gap:8px}
+button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
+.seg{display:inline-flex;align-items:center;gap:0}
+.seg span{font-size:12px;color:var(--muted);margin-right:8px}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-of-type{border-radius:6px 0 0 6px;margin-left:0}
+.seg button:last-of-type{border-radius:0 6px 6px 0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);position:relative}
+.refs{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.refs h3{margin:0;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.refhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.refhead select{max-width:100%}
+.refs figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.refs img{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:4px}
+.refs figcaption{font-size:12.5px;color:var(--muted);max-width:90ch}
+.refs figcaption a{color:var(--accent)}
+.exnote{flex:1 1 100%;order:5;color:var(--muted);font-size:13px;max-width:90ch}
+.exsrc a{color:var(--accent)}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.vfoot{position:absolute;left:12px;right:12px;bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:11.5px;color:var(--muted);pointer-events:none}
+.vfoot label{display:flex;align-items:center;gap:6px;pointer-events:auto}
+.vfoot select{padding:2px 6px;min-height:26px;font-size:12px}
+.vfoot span{flex:1 1 220px}
+@media (max-width:560px){.vfoot span{display:none}.hud{gap:10px}.hud b{font-size:19px}}
+.drop{position:fixed;inset:0;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font:600 28px var(--display);color:var(--ink);z-index:10}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">RowLog <small>oar &amp; boat motion viewer</small></div>
+    <div class="sources">
+      <label class="filebtn" id="fileLbl">Open CSV from SD card<input type="file" id="fileIn" accept=".csv,.CSV,.txt"></label>
+      <button id="bleBtn">Connect Bluetooth</button>
+      <button id="serBtn">Connect USB</button>
+      <select id="exSel" aria-label="Load an example session">
+        <option value="">Examples…</option>
+        <optgroup label="Oar"><option value="oar">Oar · single sculler</option></optgroup>
+        <optgroup label="Boat acceleration curves">
+          <option value="front">Elite · front-loaded</option>
+          <option value="late">Elite · late peak</option>
+          <option value="hump">Club · mid-drive hump</option>
+          <option value="amateur">Amateur · slow catch, rushed slide</option>
+        </optgroup>
+      </select>
+    </div>
+  </header>
+  <div class="status"><span class="chip" id="chip"><i></i><span id="chipTxt">Demo session</span></span><span id="srcInfo"></span><span class="msg" id="msg"></span>
+    <span class="exnote" id="exNote" hidden></span>
+    <label class="vm">Sensor on <select id="viewMode"><option value="auto">Auto</option><option value="oar">Oar</option><option value="boat">Boat</option></select></label></div>
+
+  <div class="panel device" id="devPanel" hidden>
+    <span class="txt" id="devTxt">Device status</span>
+    <button id="logBtn">Start / stop SD logging</button>
+    <div class="seg" role="group" aria-label="Device mode"><span>Mode</span><button id="modeOarBtn" aria-pressed="false">Oar</button><button id="modeBoatBtn" aria-pressed="false">Boat</button></div>
+    <button id="spkBtn">Device speaker on/off</button>
+    <button id="discBtn">Disconnect</button>
+  </div>
+
+  <div class="main" id="boatMain" hidden>
+    <div class="col">
+    <div class="panel view" id="viewB">
+      <canvas id="c3dB" aria-label="3D view of the boat at the current time"></canvas>
+      <div class="hud">
+        <div><span>Accel.</span><b id="hbAcc">0.0</b></div>
+        <div><span>Surge</span><b id="hbDisp">0 cm</b></div>
+        <div><span>Pitch</span><b id="hbPitch">0.0°</b></div>
+        <div><span>Roll</span><b id="hbRoll">0.0°</b></div>
+      </div>
+      <div class="views">
+        <button data-bview="persp">3/4</button><button data-bview="side">Side</button><button data-bview="stern">Stern</button><button data-bview="top">Top</button>
+      </div>
+      <div class="vfoot">
+        <label>Exaggerate <select id="boatExag"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="10">10×</option></select></label>
+        <span id="bNote">Boat movement relative to a boat at constant speed (ghost outline). In the examples the sculler moves exactly as in the model that produced the data; for your sessions it follows a standard legs–trunk–arms sequence timed to your catch and finish.</span>
+      </div>
+    </div>
+    <div class="panel profile">
+      <h3>Stroke profile · boat acceleration over the stroke (last 10 strokes, mean in bold) · drag to move through the stroke</h3>
+      <canvas id="cProf" aria-label="Boat acceleration against percentage of the stroke"></canvas>
+      <h3>Velocity fluctuation over the stroke</h3>
+      <canvas id="cProfV" aria-label="Boat velocity fluctuation against percentage of the stroke"></canvas>
+    </div>
+    <div class="panel refs" id="refPanel" hidden>
+      <div class="refhead"><h3>Reference figure</h3><select id="refSel" aria-label="Reference figure"></select></div>
+      <figure><a id="refLink" target="_blank" rel="noopener"><img id="refImg" alt="" loading="lazy"></a>
+        <figcaption id="refCap"></figcaption></figure>
+    </div>
+    </div>
+    <div class="side">
+      <div class="panel stats">
+        <h3>Boat run</h3>
+        <div class="statgrid">
+          <span></span><span class="h">This stroke</span><span class="h">Session avg</span>
+          <span class="l">Rate</span><span class="v cur" id="bsRate">–</span><span class="v" id="baRate">–</span>
+          <span class="l">Check</span><span class="v cur" id="bsCheck">–</span><span class="v" id="baCheck">–</span>
+          <span class="l">Drive peak</span><span class="v cur" id="bsPeak">–</span><span class="v" id="baPeak">–</span>
+          <span class="l">Time to peak</span><span class="v cur" id="bsTpk">–</span><span class="v" id="baTpk">–</span>
+          <span class="l">Velocity fluct.</span><span class="v cur" id="bsDv">–</span><span class="v" id="baDv">–</span>
+          <span class="l">Drive : rec.</span><span class="v cur" id="bsRatio">–</span><span class="v" id="baRatio">–</span>
+          <span class="l">Set (roll σ)</span><span class="v cur" id="bsSet">–</span><span class="v" id="baSet">–</span>
+        </div>
+        <div class="status" id="boatCount">–</div>
+      </div>
+      <div class="panel stats">
+        <h3>Sonification</h3>
+        <div class="help"><p>Pitch follows boat acceleration: rises on the drive, drops on the check. These settings drive this browser's sound and, when a device is connected, its speaker (saved on the device).</p></div>
+        <div class="snd">
+          <label for="sndCenter">Pitch at zero</label>
+          <input type="range" id="sndCenter" min="80" max="1200" step="10" value="300"><output id="oCenter">300 Hz</output>
+          <label for="sndRange">Accel. per octave</label>
+          <input type="range" id="sndRange" min="0.5" max="8" step="0.1" value="2.5"><output id="oRange">2.5 m/s²</output>
+          <label for="sndMax">Pitch limit</label>
+          <input type="range" id="sndMax" min="0.25" max="3" step="0.25" value="1.5"><output id="oMax">±1.5 oct</output>
+          <label for="sndMute">Mute below</label>
+          <input type="range" id="sndMute" min="0" max="2" step="0.05" value="0.35"><output id="oMute">0.35 m/s²</output>
+          <label for="sndVol">Device volume</label>
+          <input type="range" id="sndVol" min="1" max="10" step="1" value="6"><output id="oVol">6</output>
+        </div>
+        <div class="sndrow">
+          <button id="sndBtn">Browser sound off</button>
+          <button id="devSndBtn" disabled>Device speaker –</button>
+          <button id="sndTestBtn" disabled>Test tone</button>
+          <button id="sndResetBtn">Defaults</button>
+        </div>
+        <div class="status" id="sndSync">No device connected. Settings apply to the browser sound.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main" id="oarMain">
+    <div class="panel view" id="view">
+      <canvas id="c3d" aria-label="3D view of the oar at the current time"></canvas>
+      <div class="hud">
+        <div><span>Sweep</span><b id="hSweep">0°</b></div>
+        <div><span>Blade height</span><b id="hVert">0°</b></div>
+        <div><span>Feather</span><b id="hFeather">0°</b></div>
+      </div>
+      <div class="views">
+        <button data-view="persp">3/4</button><button data-view="top">Top</button><button data-view="stern">Stern</button>
+      </div>
+    </div>
+    <div class="side">
+      <div class="panel stats">
+        <h3>Strokes</h3>
+        <div class="statgrid">
+          <span></span><span class="h">This stroke</span><span class="h">Session avg</span>
+          <span class="l">Rate</span><span class="v cur" id="sRate">–</span><span class="v" id="aRate">–</span>
+          <span class="l">Arc</span><span class="v cur" id="sArc">–</span><span class="v" id="aArc">–</span>
+          <span class="l">Catch</span><span class="v cur" id="sCatch">–</span><span class="v" id="aCatch">–</span>
+          <span class="l">Finish</span><span class="v cur" id="sFin">–</span><span class="v" id="aFin">–</span>
+          <span class="l">Drive : rec.</span><span class="v cur" id="sRatio">–</span><span class="v" id="aRatio">–</span>
+        </div>
+        <div class="status" id="strokeCount">–</div>
+      </div>
+      <div class="panel bp">
+        <h3>Blade path · last 3 strokes</h3>
+        <canvas id="cbp" aria-label="Blade height against sweep angle"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel transport">
+    <button id="playBtn" class="primary">Play</button>
+    <span class="time" id="timeTxt">0:00.0 / 0:00.0</span>
+    <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Playback position">
+    <label>Speed <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option><option>4</option></select></label>
+    <label>Window <select id="win"><option value="10">10 s</option><option value="20" selected>20 s</option><option value="60">60 s</option><option value="0">Whole session</option></select></label>
+  </div>
+
+  <div class="panel plots" id="boatPlots" hidden>
+    <h3>Stroke rate over the session · click to jump</h3>
+    <canvas class="tl" id="ctlB"></canvas>
+    <h3>Boat acceleration, fore-aft (catch ▲ finish ▼, drive shaded)</h3>
+    <canvas class="pl" id="cSurge"></canvas>
+    <h3>Velocity fluctuation (per stroke, mean speed removed)</h3>
+    <canvas class="pl" id="cVel"></canvas>
+    <h3>Set · roll relative to the average</h3>
+    <canvas class="pl" id="cSet"></canvas>
+  </div>
+
+  <div class="panel plots" id="oarPlots">
+    <h3>Stroke rate over the session · click to jump</h3>
+    <canvas class="tl" id="ctl"></canvas>
+    <h3>Sweep angle (catch ▲ finish ▼)</h3>
+    <canvas class="pl" id="cSweep"></canvas>
+    <h3>Blade height (shaft angle to horizontal)</h3>
+    <canvas class="pl" id="cVert"></canvas>
+    <h3>Feather (0° squared, 90° flat)</h3>
+    <canvas class="pl" id="cFeather"></canvas>
+  </div>
+
+  <details class="panel">
+    <summary>Mounting and processing settings</summary>
+    <div class="settings" id="oarSettings">
+      <label>Mounting
+        <select id="mountMode"><option value="auto">Detect from the data</option><option value="manual">Set the axes by hand</option></select></label>
+      <label>Sensor position on the shaft
+        <select id="mountSide"><option value="out">Outboard of the pin (toward the blade)</option><option value="in">Inboard of the pin (toward the handle)</option></select></label>
+      <label>Sensor axis pointing along the shaft, toward the blade
+        <select id="axShaft"><option>+X</option><option>-X</option><option>+Y</option><option>-Y</option><option>+Z</option><option>-Z</option></select></label>
+      <label>Sensor axis pointing up (oar level, blade squared)
+        <select id="axUp"><option>+Z</option><option>-Z</option><option>+X</option><option>-X</option><option>+Y</option><option>-Y</option></select></label>
+      <label>Drift removal window (s)
+        <input type="number" id="driftWin" value="15" min="4" max="120" step="1"></label>
+      <label>Stroke detection threshold (° of sweep)
+        <input type="number" id="hyst" value="15" min="5" max="60" step="1"></label>
+    </div>
+    <p class="status" id="mountInfo" style="margin:10px 0 0"></p>
+    <div class="settings" id="boatSettings">
+      <span class="setgroup">Boat</span>
+      <label>Fore-aft (surge) axis
+        <select id="boatAxis"><option value="auto">Detect from the data</option><option>+X</option><option>-X</option><option>+Y</option><option>-Y</option><option>+Z</option><option>-Z</option></select></label>
+    </div>
+    <p class="status" id="boatInfo" style="margin:10px 0 0"></p>
+    <div class="help" style="margin-top:12px">
+      <p>A 6-axis IMU has no compass, so slow heading drift and boat turns are removed with the window above. To get true angles, zero the oar: hold it perpendicular to the boat, tap the gunwale 3 times and hold still until the LED lights solid. The zero is applied from that moment until the next one (and back to the start of the file for the first). Without it, sweep is relative to the average oar position. Catch and finish are told apart automatically: the drive is the half of the stroke where the blade is lower.</p>
+      <p>Gyro bias is re-estimated whenever the oar is still for a second, so hold it still for a few seconds after switching on.</p>
+    </div>
+  </details>
+
+  <div class="help">
+    <p><b>Files:</b> copy <code>ROWxxxx.CSV</code> from the SD card and open it, or drop it anywhere on this page. Columns <code>t_ms, ax_mg, ay_mg, az_mg, gx_ddps, gy_ddps, gz_ddps</code>; other CSVs with <code>t</code>, <code>ax…gz</code> columns in g and °/s also load.</p>
+    <p><b>Live:</b> Bluetooth works in Chrome or Edge on Android, Windows, macOS and ChromeOS; USB needs Chrome or Edge on a computer. If the buttons are blocked in this embedded view, download this page and open it directly in Chrome.</p>
+  </div>
+</div>
+<div class="drop" id="drop" hidden>Drop a RowLog CSV</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+const OAR = {inboard:0.88, outboard:2.02, bladeLen:0.5, bladeW:0.22, water:-0.14};
+
+// ---------------------------------------------------------------- buffers
+class Buf{
+  constructor(T=Float32Array,n=4096){this.T=T;this.a=new T(n);this.n=0}
+  push(v){if(this.n===this.a.length){const b=new this.T(this.a.length*2);b.set(this.a);this.a=b}this.a[this.n++]=v}
+}
+function axisVec(s){const v=[0,0,0];v["XYZ".indexOf(s[1])]=s[0]==="-"?-1:1;return v}
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const norm=a=>{const n=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/n,a[1]/n,a[2]/n]};
+
+// ---------------------------------------------------------------- Madgwick IMU (6-DOF)
+function madgwick(q,gx,gy,gz,ax,ay,az,dt,beta){
+  let [q0,q1,q2,q3]=q;
+  let d0=0.5*(-q1*gx-q2*gy-q3*gz), d1=0.5*(q0*gx+q2*gz-q3*gy),
+      d2=0.5*(q0*gy-q1*gz+q3*gx),  d3=0.5*(q0*gz+q1*gy-q2*gx);
+  const n=Math.hypot(ax,ay,az);
+  if(beta>0&&n>0){
+    ax/=n;ay/=n;az/=n;
+    const _2q0=2*q0,_2q1=2*q1,_2q2=2*q2,_2q3=2*q3,_4q0=4*q0,_4q1=4*q1,_4q2=4*q2,_8q1=8*q1,_8q2=8*q2,
+          q0q0=q0*q0,q1q1=q1*q1,q2q2=q2*q2,q3q3=q3*q3;
+    let s0=_4q0*q2q2+_2q2*ax+_4q0*q1q1-_2q1*ay;
+    let s1=_4q1*q3q3-_2q3*ax+4*q0q0*q1-_2q0*ay-_4q1+_8q1*q1q1+_8q1*q2q2+_4q1*az;
+    let s2=4*q0q0*q2+_2q0*ax+_4q2*q3q3-_2q3*ay-_4q2+_8q2*q1q1+_8q2*q2q2+_4q2*az;
+    let s3=4*q1q1*q3-_2q1*ax+4*q2q2*q3-_2q2*ay;
+    const sn=Math.hypot(s0,s1,s2,s3)||1;
+    d0-=beta*s0/sn;d1-=beta*s1/sn;d2-=beta*s2/sn;d3-=beta*s3/sn;
+  }
+  q0+=d0*dt;q1+=d1*dt;q2+=d2*dt;q3+=d3*dt;
+  const qn=Math.hypot(q0,q1,q2,q3);
+  q[0]=q0/qn;q[1]=q1/qn;q[2]=q2/qn;q[3]=q3/qn;
+}
+function quatFromAccel(ax,ay,az){
+  const r=Math.atan2(ay,az),p=Math.atan2(-ax,Math.hypot(ay,az));
+  const cr=Math.cos(r/2),sr=Math.sin(r/2),cp=Math.cos(p/2),sp=Math.sin(p/2);
+  return [cr*cp,sr*cp,cr*sp,-sr*sp];
+}
+
+// oar direction vectors from angles (world frame, sweep psi, height theta, feather phi)
+function oarVectors(psi,theta,phi){
+  const s=[Math.cos(theta)*Math.cos(psi),Math.cos(theta)*Math.sin(psi),Math.sin(theta)];
+  const h=norm(cross([0,0,1],s)), u0=cross(s,h);
+  const c=Math.cos(phi),si=Math.sin(phi);
+  return {s,h,u:[c*u0[0]+si*h[0],c*u0[1]+si*h[1],c*u0[2]+si*h[2]]};
+}
+
+// ---------------------------------------------------------------- session / processing
+class Session{
+  constructor(cfg,live=false){
+    this.cfg=cfg;this.live=live;
+    const X=axisVec(cfg.shaft),Z=axisVec(cfg.up),Y=cross(Z,X);
+    this.M=[X,Y,Z];
+    this.t=new Buf(Float64Array);
+    for(const k of ["ax","ay","az","gx","gy","gz","sweep","vert","feather","det","sm","abs"])this[k]=new Buf();
+    this.q=null;this.bias=[0,0,0];this.biasSet=false;this.nextBiasCheck=0;
+    this.prevRaw=null;this.wrapOff=0;this.runSum=0;this.j=0;
+    this.ext=[];this.strokes=[];this.catchSign=-1;
+    this.cals=[];this.curOff=0;this.zeroed=false; // tap-calibration times (s) and sweep offset
+  }
+  get n(){return this.t.n}
+  checkStationary(i){
+    const t=this.t.a,te=t[i];let j=i,sx=0,sy=0,sz=0,qx=0,qy=0,qz=0,sa=0,c=0;
+    while(j>=0&&t[j]>te-1.0){
+      const gx=this.gx.a[j],gy=this.gy.a[j],gz=this.gz.a[j];
+      sx+=gx;sy+=gy;sz+=gz;qx+=gx*gx;qy+=gy*gy;qz+=gz*gz;
+      sa+=Math.hypot(this.ax.a[j],this.ay.a[j],this.az.a[j]);c++;j--;
+    }
+    if(c<20||j<0&&t[0]>te-0.95)return false;
+    const mx=sx/c,my=sy/c,mz=sz/c,v=Math.max(qx/c-mx*mx,qy/c-my*my,qz/c-mz*mz);
+    if(Math.sqrt(Math.max(v,0))<1.2&&Math.abs(sa/c-1)<0.06&&Math.hypot(mx,my,mz)<6){
+      this.bias=[mx,my,mz];this.biasSet=true;return true;
+    }
+    return false;
+  }
+  append(ts,ax,ay,az,gx,gy,gz){
+    const M=this.M,a=[ax,ay,az],g=[gx,gy,gz];
+    const oa=[dot(M[0],a),dot(M[1],a),dot(M[2],a)],og=[dot(M[0],g),dot(M[1],g),dot(M[2],g)];
+    const i=this.t.n,prevT=i?this.t.a[i-1]:ts;
+    this.t.push(ts);this.ax.push(oa[0]);this.ay.push(oa[1]);this.az.push(oa[2]);
+    this.gx.push(og[0]);this.gy.push(og[1]);this.gz.push(og[2]);
+    if(ts>=this.nextBiasCheck){this.checkStationary(i);this.nextBiasCheck=ts+0.5}
+    if(!this.q){this.q=quatFromAccel(oa[0],oa[1],oa[2]);this.tq0=ts}
+    let dt=ts-prevT;if(!(dt>0.0002&&dt<0.2))dt=0;
+    const an=Math.hypot(oa[0],oa[1],oa[2]);
+    const beta=ts-this.tq0<1.5?1.5:(Math.abs(an-1)<0.3?0.08:0);
+    if(dt>0)madgwick(this.q,(og[0]-this.bias[0])*D2R,(og[1]-this.bias[1])*D2R,(og[2]-this.bias[2])*D2R,oa[0],oa[1],oa[2],dt,beta);
+    const [w,x,y,z]=this.q;
+    const s=[1-2*(y*y+z*z),2*(x*y+w*z),2*(x*z-w*y)];
+    const u=[2*(x*z+w*y),2*(y*z-w*x),1-2*(x*x+y*y)];
+    let raw=Math.atan2(s[1],s[0])*R2D;
+    if(this.prevRaw!==null){const d=raw-this.prevRaw;if(d>180)this.wrapOff-=360;else if(d<-180)this.wrapOff+=360}
+    this.prevRaw=raw;
+    const sw=raw+this.wrapOff;
+    const vert=Math.asin(Math.max(-1,Math.min(1,s[2])))*R2D;
+    const h=norm(cross([0,0,1],s)),u0=cross(s,h);
+    const fea=Math.atan2(dot(u,h),dot(u,u0))*R2D;
+    this.sweep.push(sw);this.vert.push(vert);this.feather.push(fea);
+    // trailing drift removal (live); files are redone centred in finalize()
+    this.runSum+=sw;
+    while(this.t.a[this.j]<ts-this.cfg.driftWin&&this.j<i){this.runSum-=this.sweep.a[this.j];this.j++}
+    const det=sw-this.runSum/(i-this.j+1);
+    this.det.push(det);this.abs.push(det+this.curOff);
+    const pr=i?this.sm.a[i-1]:det, al=dt>0?dt/(0.04+dt):1;
+    this.sm.push(pr+al*(det-pr));
+    if(this.live)this.detectStep(i,true);
+  }
+  finalize(){
+    const n=this.n,t=this.t.a,sw=this.sweep.a,P=new Float64Array(n+1);
+    for(let i=0;i<n;i++)P[i+1]=P[i]+sw[i];
+    const W=this.cfg.driftWin/2;let lo=0,hi=0;
+    for(let i=0;i<n;i++){
+      while(t[lo]<t[i]-W)lo++;
+      while(hi<n&&t[hi]<=t[i]+W)hi++;
+      this.det.a[i]=sw[i]-(P[hi]-P[lo])/(hi-lo);
+      this.abs.a[i]=this.det.a[i];
+    }
+    for(let i=0;i<n;i++){
+      const dt=i?t[i]-t[i-1]:0,al=dt>0?dt/(0.04+dt):1,pr=i?this.sm.a[i-1]:this.det.a[0];
+      this.sm.a[i]=pr+al*(this.det.a[i]-pr);
+    }
+    this.ext=[];this.dState=undefined;
+    for(let i=0;i<n;i++)this.detectStep(i,false);
+    this.buildStrokes();
+  }
+  detectStep(i,rebuild){
+    const v=this.sm.a[i],H=this.cfg.hyst;
+    if(this.dState===undefined){this.dState=1;this.ex=v;this.exI=i;this.segFrom=i;return}
+    if(this.dState===1){
+      if(v>=this.ex){this.ex=v;this.exI=i}
+      else if(this.ex-v>H){this.addExt(this.exI,1,rebuild);this.dState=-1;this.ex=v;this.exI=i}
+    }else{
+      if(v<=this.ex){this.ex=v;this.exI=i}
+      else if(v-this.ex>H){this.addExt(this.exI,-1,rebuild);this.dState=1;this.ex=v;this.exI=i}
+    }
+  }
+  addExt(idx,type,rebuild){
+    let s=0,c=0;for(let k=this.segFrom;k<=idx;k++){s+=this.vert.a[k];c++}
+    this.ext.push({i:idx,type,segVert:c?s/c:0});
+    this.segFrom=idx;
+    if(rebuild)this.buildStrokes();
+  }
+  buildStrokes(){
+    // type +1 = max (ends a rising segment). The drive is the segment type with the lower blade.
+    let rs=0,rc=0,fs=0,fc=0;
+    for(let k=1;k<this.ext.length;k++){const e=this.ext[k];if(e.type===1){rs+=e.segVert;rc++}else{fs+=e.segVert;fc++}}
+    const driveRising=rc&&fc?rs/rc<fs/fc:true;
+    const catchType=driveRising?-1:1, t=this.t.a, det=this.det.a;
+    const S=[];
+    for(let k=0;k+2<this.ext.length;k++){
+      const c=this.ext[k];if(c.type!==catchType)continue;
+      const f=this.ext[k+1],nx=this.ext[k+2];
+      const period=t[nx.i]-t[c.i],drive=t[f.i]-t[c.i];
+      const st={c:c.i,f:f.i,n:nx.i,arc:Math.abs(det[f.i]-det[c.i]),
+                rate:60/period,ratio:drive/Math.max(period-drive,1e-3)};
+      st.valid=st.rate>8&&st.rate<65&&st.arc>20;
+      S.push(st);
+    }
+    this.strokes=S;
+    this.applyCal();
+    for(const st of S){st.catchA=this.abs.a[st.c];st.finA=this.abs.a[st.f]}
+    const v=S.filter(s=>s.valid);
+    if(v.length){const m=v.reduce((a,s)=>a+s.catchA,0)/v.length;this.catchSign=m>=0?1:-1}
+  }
+  // Tap calibration: at a cal time the oar was perpendicular, so raw yaw there = 0°.
+  // Raw yaw drifts and follows the boat's heading, so it is only trusted for ~60 s after
+  // the tap: in that window we measure where the average oar position (the drift-removal
+  // trend) sits relative to perpendicular, and keep that offset until the next calibration.
+  calOffset(k){
+    const t=this.t.a,tc=this.cals[k],ci=this.idxAt(tc),tn=k+1<this.cals.length?this.cals[k+1]:Infinity;
+    const we=Math.min(tc+60,tn),wi=this.idxAt(we),base=this.sweep.a[ci];
+    let sum=0,cnt=0,strokes=0;
+    for(const st of this.strokes){if(!st.valid||st.c<ci||st.n>wi)continue;strokes++;
+      for(let i=st.c;i<st.n;i++){sum+=this.sweep.a[i]-base-this.det.a[i];cnt++}}
+    if(strokes<2){sum=0;cnt=0;const e=this.idxAt(Math.min(tc+10,we));
+      for(let i=ci;i<=e;i++){sum+=this.sweep.a[i]-base-this.det.a[i];cnt++}}
+    return {ci,off:cnt?sum/cnt:0,settled:t[this.n-1]>=we||strokes>=20};
+  }
+  applyCal(){
+    const n=this.n;if(!this.cals.length||!n){this.zeroed=false;return}
+    if(this.live){ // only the newest calibration can still change; rewrite from its start
+      const k=this.cals.length-1;
+      if(this.calSettled===k)return;
+      const {ci,off,settled}=this.calOffset(k);
+      if(settled)this.calSettled=k;
+      if(Math.abs(off-this.curOff)<0.05&&this.zeroed)return;
+      this.curOff=off;this.zeroed=true;
+      for(let i=k===0?0:ci;i<n;i++)this.abs.a[i]=this.det.a[i]+off;
+      return;
+    }
+    const offs=this.cals.map((_,k)=>this.calOffset(k));
+    for(let k=0;k<offs.length;k++){
+      const from=k===0?0:offs[k].ci,to=k+1<offs.length?offs[k+1].ci:n;
+      for(let i=from;i<to;i++)this.abs.a[i]=this.det.a[i]+offs[k].off;
+    }
+    this.zeroed=true;
+  }
+  addCal(time){this.cals.push(time);this.calSettled=undefined;if(this.strokes.length||!this.live)this.buildStrokes();else this.applyCal()}
+  strokeAt(i){
+    const S=this.strokes;let lo=0,hi=S.length-1,r=-1;
+    while(lo<=hi){const m=(lo+hi)>>1;if(S[m].c<=i){r=m;lo=m+1}else hi=m-1}
+    return r;
+  }
+  idxAt(time){
+    const t=this.t.a;let lo=0,hi=this.n-1;
+    if(hi<0)return 0;
+    while(lo<hi){const m=(lo+hi+1)>>1;if(t[m]<=time)lo=m;else hi=m-1}
+    return lo;
+  }
+}
+
+
+// ---------------------------------------------------------------- boat analysis
+// The same idea as the firmware: track gravity in the sensor frame (gyro-propagated,
+// pulled toward the accelerometer over ~2 s), keep the horizontal part of what's left,
+// and take its main axis as fore-aft. The sign makes the sharp catch check negative.
+const G0=9.80665;
+// Which way is the bow? Boat acceleration is positive for most of the stroke (the drive and the
+// recovery) and strongly negative only around the catch and the release, so the direction in
+// which it is positive most of the time is forward. Only when that is too close to call does the
+// skew (the catch check being the biggest negative spike) decide. pf: mean sign (-1..1).
+function boatSign(pf,m3,cur){if(Math.abs(pf)>0.08)return pf>0?1:-1;if(Math.abs(m3)>0.02)return m3<0?1:-1;return cur}
+class BoatSession{
+  constructor(cfg,live=false){
+    this.cfg=cfg;this.live=live;this.t=new Buf(Float64Array);
+    for(const k of ["hx","hy","hz","surge","slp","vel","roll","set","rms","ux","uy","uz","praw","pitch","disp","vhp","dhp"])this[k]=new Buf();
+    this.pitchSum=0;this.pitchJ=0;this.hv=0;this.hd=0;
+    this.g=null;this.axis=[1,0,0];this.sign=1;this.cov=[[0,0,0],[0,0,0],[0,0,0]];this.m3=0;this.plp=0;this.pf=0;this.nextAxis=0;
+    this.strokes=[];this.catches=[];this.ms=0;this.D={state:0,min:0,minI:0,last:-1e9};
+    this.rollSum=0;this.rollJ=0;this.axisInfo="";
+    const f=cfg.boatAxis;
+    if(Array.isArray(f)){this.forced=true;this.axis=norm(f);this.sign=1}
+    else if(f&&f!=="auto"){this.forced=true;this.axis=axisVec(f).map(Math.abs);this.sign=f[0]==="-"?-1:1}
+  }
+  get n(){return this.t.n}
+  append(ts,ax,ay,az,gx,gy,gz){
+    const i=this.t.n,dt=i?Math.min(0.1,Math.max(1e-4,ts-this.t.a[i-1])):0.005;
+    const a=[ax*G0,ay*G0,az*G0],w=[gx*D2R,gy*D2R,gz*D2R];
+    if(!this.g)this.g=a.slice();
+    const c=cross(w,this.g),kg=Math.min(1,dt/2);
+    for(let k=0;k<3;k++){this.g[k]-=c[k]*dt;this.g[k]+=kg*(a[k]-this.g[k])}
+    const u=norm(this.g);let lin=[a[0]-this.g[0],a[1]-this.g[1],a[2]-this.g[2]];
+    const up=dot(lin,u);lin=[lin[0]-up*u[0],lin[1]-up*u[1],lin[2]-up*u[2]];
+    this.t.push(ts);this.hx.push(lin[0]);this.hy.push(lin[1]);this.hz.push(lin[2]);
+    // attitude (pitch, roll) from a slower, gyro-led gravity estimate: the 2 s one above is
+    // pulled several degrees by the boat's own acceleration on every stroke
+    if(!this.g2)this.g2=a.slice();
+    {const c2=cross(w,this.g2),k2=Math.min(1,dt/15);for(let q=0;q<3;q++){this.g2[q]-=c2[q]*dt;this.g2[q]+=k2*(a[q]-this.g2[q])}}
+    const u2=norm(this.g2);this.ux.push(u2[0]);this.uy.push(u2[1]);this.uz.push(u2[2]);
+    if(!this.um)this.um=u2.slice();else{const ku=Math.min(1,dt/20);for(let q=0;q<3;q++)this.um[q]+=ku*(u2[q]-this.um[q])}
+    const roll=this.rollOf(i,this.um);this.roll.push(roll);
+    for(const k of ["surge","slp","vel","set","rms","praw","pitch","disp","vhp","dhp"])this[k].push(0);
+    if(this.live){
+      if(!this.forced){const kc=Math.min(1,dt/20);
+        for(let r=0;r<3;r++)for(let q=0;q<3;q++)this.cov[r][q]+=kc*(lin[r]*lin[q]-this.cov[r][q]);
+        const pr=dot(lin,this.axis);this.m3+=kc*(pr*pr*pr-this.m3);
+        this.plp+=(pr-this.plp)*(dt/(0.02+dt));this.pf+=kc*((this.plp>0?1:-1)-this.pf);
+        if(ts>=this.nextAxis){this.updateAxis();this.nextAxis=ts+1}}
+      this.fill(i,dt,true);
+      // set: roll minus the trailing 20 s mean
+      this.rollSum+=roll;while(this.t.a[this.rollJ]<ts-20&&this.rollJ<i){this.rollSum-=this.roll.a[this.rollJ];this.rollJ++}
+      this.set.a[i]=roll-this.rollSum/(i-this.rollJ+1);
+      // pitch (bow up +) about the current fore-aft axis, minus the trailing 20 s mean
+      const pr=this.pitchOf(i);this.praw.a[i]=pr;this.pitchSum+=pr;
+      while(this.t.a[this.pitchJ]<ts-20&&this.pitchJ<i){this.pitchSum-=this.praw.a[this.pitchJ];this.pitchJ++}
+      this.pitch.a[i]=pr-this.pitchSum/(i-this.pitchJ+1);
+    }
+  }
+  updateAxis(){
+    let v=[this.axis[0]+0.01,this.axis[1]+0.01,this.axis[2]+0.01];
+    for(let it=0;it<25;it++){const w=[0,1,2].map(r=>dot(this.cov[r],v)),nn=Math.hypot(...w);if(nn<1e-12)return;v=w.map(x=>x/nn)}
+    if(dot(v,this.axis)<0)v=v.map(x=>-x);
+    this.axis=v;this.sign=boatSign(this.pf,this.m3,this.sign);
+  }
+  rollOf(i,um){ // roll about the fore-aft axis (port up +), relative to the average "up" um
+    const f=this.axis.map(x=>x*this.sign),u=[this.ux.a[i],this.uy.a[i],this.uz.a[i]];
+    const d=dot(um,f),u0=norm([um[0]-d*f[0],um[1]-d*f[1],um[2]-d*f[2]]),l=cross(u0,f);
+    return -Math.atan2(dot(u,l),dot(u,u0))*R2D}
+  pitchOf(i){const d=this.sign*(this.ux.a[i]*this.axis[0]+this.uy.a[i]*this.axis[1]+this.uz.a[i]*this.axis[2]);return Math.asin(Math.max(-1,Math.min(1,d)))*R2D}
+  hpInt(i,dt){ // leaky double integral of surge: velocity and position wobble for the stroke in progress
+    const k=Math.min(1,dt/2);this.hv+=this.slp.a[i]*dt-this.hv*k;this.hd+=this.hv*dt-this.hd*k;this.vhp.a[i]=this.hv;this.dhp.a[i]=this.hd}
+  fill(i,dt,causal){ // surge, low-pass, rolling rms, stroke detection for sample i
+    const s=this.sign*(this.hx.a[i]*this.axis[0]+this.hy.a[i]*this.axis[1]+this.hz.a[i]*this.axis[2]);
+    this.surge.a[i]=s;
+    if(causal){const pr=i?this.slp.a[i-1]:s;this.slp.a[i]=pr+(s-pr)*(dt/(0.02+dt))}
+    const v=this.slp.a[i];this.ms+=(v*v-this.ms)*Math.min(1,dt/6);this.rms.a[i]=Math.sqrt(this.ms);
+    this.hpInt(i,dt);
+    this.detect(i);
+  }
+  finalize(){ // whole-file pass: global axis, zero-phase filtering, strokes
+    const n=this.n,t=this.t.a,H=[this.hx.a,this.hy.a,this.hz.a];
+    if(!this.forced){
+      const C=[[0,0,0],[0,0,0],[0,0,0]];
+      for(let i=0;i<n;i+=2)for(let r=0;r<3;r++)for(let q=0;q<3;q++)C[r][q]+=H[r][i]*H[q][i];
+      this.cov=C;this.axis=[1,0.3,0.2];this.m3=0;
+      let v=norm([1,0.3,0.2]);for(let it=0;it<40;it++){const w=[0,1,2].map(r=>dot(C[r],v)),nn=Math.hypot(...w);if(nn<1e-12)break;v=w.map(x=>x/nn)}
+      this.axis=v;
+      let p=0,m3=0,pos=0;for(let i=0;i<n;i++){const x=H[0][i]*v[0]+H[1][i]*v[1]+H[2][i]*v[2];const dt=i?t[i]-t[i-1]:0.005;p+=(x-p)*(dt/(0.02+dt));m3+=p*p*p;pos+=p>0?1:-1}
+      this.sign=boatSign(pos/Math.max(1,n),m3/Math.max(1,n),1);
+    }
+    for(let i=0;i<n;i++)this.surge.a[i]=this.sign*(H[0][i]*this.axis[0]+H[1][i]*this.axis[1]+H[2][i]*this.axis[2]);
+    // zero-phase ~8 Hz low-pass (forward + backward one-pole)
+    const S=this.surge.a,L=this.slp.a;
+    for(let i=0;i<n;i++){const dt=i?t[i]-t[i-1]:0.005,pr=i?L[i-1]:S[0];L[i]=pr+(S[i]-pr)*(dt/(0.028+dt))}
+    for(let i=n-2;i>=0;i--){const dt=t[i+1]-t[i];L[i]=L[i+1]+(L[i]-L[i+1])*(dt/(0.028+dt))}
+    // roll about the fore-aft axis (the live pass used the axis as it was then)
+    const um=[0,0,0];for(let i=0;i<n;i++){um[0]+=this.ux.a[i];um[1]+=this.uy.a[i];um[2]+=this.uz.a[i]}
+    for(let i=0;i<n;i++)this.roll.a[i]=this.rollOf(i,um);
+    // set: roll minus a centred 20 s mean
+    const P=new Float64Array(n+1);for(let i=0;i<n;i++)P[i+1]=P[i]+this.roll.a[i];
+    let lo=0,hi=0;for(let i=0;i<n;i++){while(t[lo]<t[i]-10)lo++;while(hi<n&&t[hi]<=t[i]+10)hi++;this.set.a[i]=this.roll.a[i]-(P[hi]-P[lo])/(hi-lo)}
+    // pitch, centred 20 s mean removed
+    for(let i=0;i<n;i++){this.praw.a[i]=this.pitchOf(i);P[i+1]=P[i]+this.praw.a[i]}
+    lo=0;hi=0;for(let i=0;i<n;i++){while(t[lo]<t[i]-10)lo++;while(hi<n&&t[hi]<=t[i]+10)hi++;this.pitch.a[i]=this.praw.a[i]-(P[hi]-P[lo])/(hi-lo)}
+    this.hv=0;this.hd=0;for(let i=0;i<n;i++)this.hpInt(i,i?t[i]-t[i-1]:0.005);
+    this.strokes=[];this.catches=[];this.ms=0;this.D={state:0,min:0,minI:0,last:-1e9};
+    for(let i=0;i<n;i++){const v=L[i],dt=i?t[i]-t[i-1]:0.005;this.ms+=(v*v-this.ms)*Math.min(1,dt/6);this.rms.a[i]=Math.sqrt(this.ms);this.detect(i)}
+    const names=["X","Y","Z"],k=[0,1,2].reduce((a,b)=>Math.abs(this.axis[b])>Math.abs(this.axis[a])?b:a,0);
+    this.axisInfo=(this.cfg.fromTrigger?"Fore-aft direction from the logger's stroke timing: ":this.cfg.known?"Fore-aft axis (known for this example): ":this.forced?"Fore-aft axis set by hand: ":"Detected fore-aft axis: ")+(this.sign*Math.sign(this.axis[k])>0?"+":"-")+names[k]+
+      (Math.abs(this.axis[k])<0.9?` (tilted, ${(Math.acos(Math.min(1,Math.abs(this.axis[k])))*R2D).toFixed(0)}° off the axis)`:"");
+  }
+  // A catch is the deepest point of each dip below -1.2 x rms of the recent signal.
+  detect(i){
+    const v=this.slp.a[i],t=this.t.a,r=this.rms.a[i],thr=-1.2*r,D=this.D;
+    if(r<0.35){D.state=0;D.ref=undefined;D.per=0;return}     // not being rowed
+    if(D.state===0){if(v<thr&&t[i]-D.last>0.9){D.state=1;D.min=v;D.minI=i}}
+    else{if(v<D.min){D.min=v;D.minI=i}
+      if(v>thr*0.4){D.state=0;
+        // reject dips much shallower than recent catches (finish / pre-catch dips) and
+        // dips far too soon after the last catch
+        const tooShallow=D.ref!==undefined&&D.min>0.5*D.ref,tooSoon=D.per&&t[D.minI]-D.last<0.5*D.per;
+        if(!tooShallow&&!tooSoon){
+          if(D.last>0&&t[D.minI]-D.last<6)D.per=D.per?D.per+0.3*(t[D.minI]-D.last-D.per):t[D.minI]-D.last;
+          D.ref=D.ref===undefined||D.min<D.ref?D.min:D.ref+0.1*(D.min-D.ref);/* ref follows the deepest catches */D.last=t[D.minI];this.addCatch(D.minI)}}}
+  }
+  addCatch(ci){
+    const prev=this.catches.length?this.catches[this.catches.length-1]:-1;this.catches.push(ci);
+    if(prev<0)return;const st=this.makeStroke(prev,ci);if(st)this.strokes.push(st);
+  }
+  makeStroke(c,n){
+    const t=this.t.a,L=this.slp.a,S=this.surge.a,T=t[n]-t[c];
+    if(!(T>0.9&&T<6))return {c,f:c,n,rate:60/Math.max(T,1e-3),valid:false};
+    let pk=-1e9,pkI=c;for(let i=c;i<n&&t[i]<t[c]+0.55*T;i++)if(L[i]>pk){pk=L[i];pkI=i}
+    // finish: the release dip is the lowest point 20-60 % into the stroke; the finish is where the
+    // acceleration crossed zero on the way into it (a mid-drive hump can cross zero earlier)
+    let f=-1;{let lo=Infinity,loI=-1;for(let i=c;i<n;i++){const e=t[i]-t[c];if(e<0.2*T)continue;if(e>0.6*T)break;if(L[i]<lo){lo=L[i];loI=i}}
+      if(loI>0&&lo<0){let j=loI;while(j>pkI&&L[j]<=0)j--;if(j>pkI)f=j+1}}
+    if(f<0){f=pkI;while(f<n-1&&L[f]>0)f++}
+    let mean=0;for(let i=c;i<n;i++)mean+=S[i];mean/=(n-c);
+    let v=0,vmin=0,vmax=0,vs=0;const V=this.vel.a;
+    for(let i=c;i<n;i++){const dt=i>c?t[i]-t[i-1]:0;v+=(S[i]-mean)*dt;V[i]=v;vs+=v;if(v<vmin)vmin=v;if(v>vmax)vmax=v}
+    const vm=vs/(n-c);for(let i=c;i<n;i++)V[i]-=vm;
+    // position wobble around the mean-speed position over the stroke
+    const Dp=this.disp.a;let d=0,ds=0;for(let i=c;i<n;i++){const dt=i>c?t[i]-t[i-1]:0;d+=V[i]*dt;Dp[i]=d;ds+=d}
+    const dm=ds/(n-c);for(let i=c;i<n;i++)Dp[i]-=dm;
+    let rs=0,rq=0;for(let i=c;i<n;i++){rs+=this.set.a[i];rq+=this.set.a[i]**2}
+    const rmean=rs/(n-c),setSd=Math.sqrt(Math.max(0,rq/(n-c)-rmean*rmean));
+    return {c,f,n,rate:60/T,check:L[c],peak:pk,tPeak:(t[pkI]-t[c])*1000,dv:vmax-vmin,
+      ratio:(t[f]-t[c])/Math.max(1e-3,t[n]-t[f]),set:setSd,valid:60/T>=10&&60/T<=65&&pk>0};
+  }
+}
+BoatSession.prototype.idxAt=Session.prototype.idxAt;
+BoatSession.prototype.strokeAt=Session.prototype.strokeAt;
+
+function guessMode(cols){ // oar data swings the gyro by hundreds of deg/s, a hull barely rotates
+  if(cols.mode==="boat"||cols.mode==="oar")return cols.mode;
+  let s=0,c=0;for(let i=0;i<cols.n;i+=10){s+=cols.gx[i]**2+cols.gy[i]**2+cols.gz[i]**2;c++}
+  return Math.sqrt(s/Math.max(c,1))>40?"oar":"boat";
+}
+
+// ---------------------------------------------------------------- boat examples
+// Synthetic single sculls. Each example is a boat-acceleration curve built from the features
+// Kleshnev describes: the catch dip, the "first peak" straight after it (legs pushing off the
+// stretcher, high in elite crews), where the main drive peak sits (front-loaded sequential
+// legs-first drive vs. a later peak when legs and trunk work together), the mid-drive "hump"
+// when legs and trunk disconnect, the release dip, and the recovery (rower moving to the stern
+// pushes the boat on; stopping at the catch pulls it back). Shapes are given on a normalised
+// stroke where the drive is the first 40 %; at higher rates the drive takes a bigger share.
+// [amplitude m/s², centre, width] triples on that normalised stroke.
+// ---------------------------------------------------------------- reference figures
+// Slots for published figures, shown under the stroke profile in boat view. Fill in `src` with
+// the address of an image you host (a path next to this page such as "figures/kleshnev-2010-fig3.png",
+// or a full https URL). Entries with an empty `src` are not shown; the panel stays hidden until at
+// least one has an image. `example` picks the entry automatically when that example is loaded.
+// Keep `credit` and `href` so every figure stays attributed to its source.
+const REFERENCE_FIGURES=[
+  {id:"kl2010-rates",example:"front",src:"",
+   caption:"Boat and rower centre-of-mass acceleration over the stroke at different stroke rates.",
+   credit:"Kleshnev V. (2010) Boat acceleration, temporal structure of the stroke cycle, and effectiveness in rowing. Proc IMechE Part P, 224(1).",
+   href:"https://doi.org/10.1243/17543371jset40"},
+  {id:"kl-styles",example:"late",src:"",
+   caption:"Rowing styles: timing of legs and trunk, and how it shapes the force and acceleration curves.",
+   credit:"Kleshnev V. Rowing Styles, Analysis and Optimisation. row2k.",
+   href:"https://www.row2k.com/features/5531/rowing-styles-analysis-and-optimisation-by-dr-valery-kleshnev/"},
+  {id:"rim-hump",example:"hump",src:"",
+   caption:"A mid-drive hump in the boat acceleration curve compared with an elite curve.",
+   credit:"Rowing in Motion: Improve your Stroke – avoid the drive hump.",
+   href:"https://www.rowinginmotion.com/improve-your-stroke-avoid-the-drive-hump/"},
+  {id:"extra-1",example:"amateur",src:"",caption:"",credit:"",href:""},
+  {id:"extra-2",example:"",src:"",caption:"",credit:"",href:""}
+];
+function refFigures(){return REFERENCE_FIGURES.filter(f=>f.src)}
+function refInit(){
+  const figs=refFigures(),sel=$("refSel");
+  $("refPanel").dataset.has=figs.length?"1":"";
+  sel.replaceChildren(...figs.map(f=>{const o=document.createElement("option");o.value=f.id;o.textContent=f.caption||f.id;return o}));
+  sel.hidden=figs.length<2;
+  if(figs.length)refShow(figs[0].id);
+}
+function refShow(id){
+  const f=REFERENCE_FIGURES.find(x=>x.id===id&&x.src);if(!f)return;
+  $("refSel").value=f.id;$("refImg").src=f.src;$("refImg").alt=f.caption||"Reference figure";
+  const L=$("refLink");if(f.href)L.href=f.href;else L.removeAttribute("href");
+  const cap=$("refCap");cap.replaceChildren();
+  if(f.caption)cap.append(f.caption+" ");
+  if(f.credit||f.href){const a=document.createElement(f.href?"a":"span");a.textContent="Source: "+(f.credit||f.href);
+    if(f.href){a.href=f.href;a.target="_blank";a.rel="noopener"}cap.append(a)}
+}
+function refForExample(k){const f=refFigures().find(x=>x.example===k);if(f)refShow(f.id)}
+
+// Where to see the real curves these examples are modelled on.
+const EX_SOURCES=[
+  ["Boat acceleration and temporal structure of the stroke cycle (2010)","https://doi.org/10.1243/17543371jset40"],
+  ["Figure: boat and rower acceleration at different rates","https://www.researchgate.net/figure/Patterns-of-acceleration-of-a-the-boat-and-b-the-rowers-CM-at-different-stroke-rates_fig3_245524699"],
+  ["Rowing styles (row2k)","https://www.row2k.com/features/5531/rowing-styles-analysis-and-optimisation-by-dr-valery-kleshnev/"],
+  ["The drive hump (Rowing in Motion)","https://www.rowinginmotion.com/improve-your-stroke-avoid-the-drive-hump/"]];
+// ---------------------------------------------------------------- rower model
+// A single sculler as a chain of segments in the boat frame (x toward the bow, z up, origin at the
+// pins on the waterline; the sculler faces the stern). Technique = how legs, trunk and arms move
+// through the drive and recovery, plus the shape of the handle force. From that:
+//  - the rower's centre of mass along the boat (its acceleration is the inertia force),
+//  - the handle position, so the oar angle (the oar pivots at the pin),
+//  - the blade force (handle force x leverage x forward component of the oar angle).
+// Boat acceleration then follows from Newton on the boat + rower system:
+//   (m_boat + m_rower) * a_boat = F_blade_forward - drag - m_rower * a_rower_relative
+const RIG={IN:0.88,OUT:1.99,BLADE:0.47,pinZ:0.3,pinY:0.8};
+const BODY={heelX:-0.33,heelZ:0.17,hipZ:0.30,shank:0.47,thigh:0.47,trunk:0.55,head:0.2,arm:0.63,handZ:0.42,drawnReach:0.24};
+const SEG={legs:0.32,trunk:0.58,arms:0.10};          // share of body mass
+const smooth5=x=>x<=0?0:x>=1?1:x*x*x*(x*(6*x-15)+10);   // continuous up to acceleration
+const PROFILES=new Map();
+function profile(up,down,su,sd){ // position 0..1 for a movement whose speed ramps up, holds, and ramps down
+  // su/sd: start/end with a finite acceleration (a continuous reversal, as at the catch) instead of from rest
+  const key=[up,down,su,sd].join();if(PROFILES.has(key))return PROFILES.get(key);
+  const n=2000,x=new Float64Array(n+1),v=new Float64Array(n+1);
+  const rise=u=>su?(u>=1?1:Math.sin(Math.PI/2*u)):smooth5(u),fall=u=>sd?(u>=1?1:Math.sin(Math.PI/2*u)):smooth5(u);
+  const vel=u=>rise(Math.min(1,u/up))*fall(Math.min(1,(1-u)/down));
+  for(let i=0;i<=n;i++)v[i]=vel(i/n);
+  for(let i=1;i<=n;i++)x[i]=x[i-1]+(v[i]+v[i-1])/(2*n);
+  const L=x[n];for(let i=0;i<=n;i++){x[i]/=L;v[i]/=L}
+  // cubic Hermite between nodes using the known speed: smooth position, speed and acceleration
+  const f=u=>{if(u<=0)return 0;if(u>=1)return 1;const g=u*n,i=Math.floor(g),s=g-i,h=1/n;
+    const s2=s*s,s3=s2*s;return (2*s3-3*s2+1)*x[i]+(s3-2*s2+s)*h*v[i]+(-2*s3+3*s2)*x[i+1]+(s3-s2)*h*v[i+1]};
+  PROFILES.set(key,f);return f;
+}
+// w = [start, end, up, down, reversal-at-start, reversal-at-end]: window as a fraction of the
+// drive/recovery and its speed profile
+const win=(x,w)=>profile(w[2]??0.5,w[3]??0.5,w[4],w[5])((x-w[0])/(w[1]-w[0]));
+// Techniques. Drive windows [start,end] as fractions of the drive; recovery windows likewise.
+// force: [blade entry, blade exit, peak position, shape exponent, optional mid-drive dip [at, depth, width]]
+const TECH={
+  // legs connect quickly at the catch, trunk joins as the legs are halfway, arms finish
+  front:{label:"sequential, legs first",massR:85,massB:17,body:{tc:28,tf:-25,lmin:0.30},
+    drive:{legs:[0,0.76,0.3,0.66,1],trunk:[0.18,0.92,0.5,0.5],arms:[0.5,1,0.5,0.4]},
+    rec:{arms:[0,0.4,0.35,0.75],trunk:[0.02,0.72,0.3,0.75],legs:[0.08,1,0.75,0.3,0,1]},
+    force:{in:0.02,out:0.97,pk:0.3,k:1.6},speed:[4.35,4.75,5.1],driveT:1.05},
+  // legs and trunk start together and share the drive; the effort peaks in the middle
+  late:{label:"legs and trunk together",massR:85,massB:17,body:{tc:28,tf:-25,lmin:0.30},
+    drive:{legs:[0,0.86,0.42,0.55,1],trunk:[0.04,0.92,0.45,0.55],arms:[0.5,1,0.5,0.4]},
+    rec:{arms:[0,0.4,0.35,0.75],trunk:[0.02,0.72,0.3,0.75],legs:[0.08,1,0.75,0.3,0,1]},
+    force:{in:0.02,out:0.97,pk:0.48,k:1.7},speed:[4.3,4.7,5.05],driveT:1.08},
+  // legs drive first, then the trunk opens late and suddenly ("double trunk work"): a second burst of
+  // body acceleration mid-drive while the handle force sags, so the boat slows again (the hump)
+  hump:{label:"trunk opens late and suddenly",massR:82,massB:17,body:{tc:26,tf:-25,lmin:0.31},
+    drive:{legs:[0,0.64,0.3,0.5,1],trunk:[0.34,0.8,0.3,0.45],arms:[0.6,1,0.5,0.4]},
+    rec:{arms:[0,0.4,0.35,0.75],trunk:[0.02,0.72,0.3,0.75],legs:[0.08,1,0.75,0.3,0,1]},
+    force:{in:0.03,out:0.95,pk:0.27,k:1.5,dip:[0.45,0.4,0.1]},speed:[3.95,4.3,4.55],driveT:1.08},
+  // blade goes in late while the body is already moving, arms bend early, force fades before the
+  // finish; on the recovery the seat hurries up the slide and stops hard at the front stops
+  amateur:{label:"slow catch, early arms, rushed slide",massR:80,massB:17,body:{tc:18,tf:-30,lmin:0.36},
+    drive:{legs:[0.04,0.82,0.5,0.6],trunk:[0.3,0.95,0.5,0.5],arms:[0.2,1,0.5,0.4]},
+    rec:{arms:[0,0.4,0.35,0.7],trunk:[0.03,0.65,0.35,0.7],legs:[0.18,0.92,0.25,0.22]},
+    force:{in:0.12,out:0.86,pk:0.5,k:1.3},speed:[3.35,3.6,3.8],driveT:1.15},
+};
+TECH.generic=TECH.front;
+// leg extension, trunk angle (deg, + = leaning to the stern) and arm draw for a stroke phase
+function techPose(tech,ph){
+  const d=tech.drive,r=tech.rec;
+  if(ph.drive!==undefined){const u=ph.drive;
+    const legs=win(u,d.legs),trunk=win(u,d.trunk),arms=win(u,d.arms);
+    const b=tech.body;return {legs,trunk:b.tc+(b.tf-b.tc)*trunk,arms,lmin:b.lmin}}
+  const v=ph.rec;
+  const b=tech.body,arms=1-win(v,r.arms),trunk=b.tf+(b.tc-b.tf)*win(v,r.trunk),legs=1-win(v,r.legs);
+  return {legs,trunk,arms,lmin:b.lmin};
+}
+// joint positions (x,z) in the boat frame and the rower's centre of mass x
+function bodyJoints(p){
+  const B=BODY,dz=B.hipZ-B.heelZ,leg=B.shank+B.thigh;
+  const dMin=p.lmin||0.3,dMax=Math.sqrt(leg*leg-dz*dz)*0.985;
+  const heel=[B.heelX,B.heelZ],hip=[B.heelX+dMin+(dMax-dMin)*p.legs,B.hipZ];
+  const hd=Math.hypot(hip[0]-heel[0],hip[1]-heel[1]),a=Math.acos(Math.min(1,(B.shank*B.shank+hd*hd-B.thigh*B.thigh)/(2*B.shank*hd)));
+  const base=Math.atan2(hip[1]-heel[1],hip[0]-heel[0]),knee=[heel[0]+B.shank*Math.cos(base+a),heel[1]+B.shank*Math.sin(base+a)];
+  const th=p.trunk*Math.PI/180,sh=[hip[0]-B.trunk*Math.sin(th),hip[1]+B.trunk*Math.cos(th)];
+  const head=[sh[0]-B.head*Math.sin(th),sh[1]+B.head*Math.cos(th)];
+  const dzh=sh[1]-B.handZ,straight=Math.sqrt(Math.max(0.01,B.arm*B.arm-dzh*dzh));
+  const reach=straight+(B.drawnReach-straight)*p.arms;             // horizontal distance shoulder->hand
+  const hand=[sh[0]-reach,B.handZ];
+  const hh=Math.hypot(sh[0]-hand[0],sh[1]-hand[1]),ea=Math.acos(Math.min(1,hh/B.arm)); // elbow bends as the hand comes in
+  const ang=Math.atan2(hand[1]-sh[1],hand[0]-sh[0]),elbow=[sh[0]+B.arm/2*Math.cos(ang-ea),sh[1]+B.arm/2*Math.sin(ang-ea)];
+  const cmx=SEG.legs*(0.25*heel[0]+0.4*knee[0]+0.35*hip[0])+SEG.trunk*(hip[0]+0.55*(sh[0]-hip[0]))+SEG.arms*(0.5*(sh[0]+hand[0]));
+  return {heel,knee,hip,sh,head,elbow,hand,cmx};
+}
+// oar angle from the handle: + = blade toward the bow (catch), handle x = -IN*sin(angle)
+const sweepFromHand=hx=>Math.asin(Math.max(-0.99,Math.min(0.99,-hx/RIG.IN)));
+function handleForce(tech,ph){ // relative handle force 0..1
+  if(ph.drive===undefined)return 0;
+  const f=tech.force,x=(ph.drive-f.in)/(f.out-f.in);if(x<=0||x>=1)return 0;
+  const a=f.k*f.pk/(1-f.pk),b=f.k; // peak at pk
+  let v=Math.pow(x,a)*Math.pow(1-x,b)/(Math.pow(f.pk,a)*Math.pow(1-f.pk,b));
+  if(f.dip)v*=1-f.dip[1]*Math.exp(-0.5*((x-f.dip[0])/f.dip[2])**2);
+  return v;
+}
+function phaseOf(p,df){return p<df?{drive:p/df}:{rec:(p-df)/(1-df)}}
+// Simulate a session: returns boat acceleration, rower cm, phase per sample.
+function simulateRowing(kind,fs,T,opts={}){
+  const tech=TECH[kind],n=Math.round(fs*T),dt=1/fs;
+  const M=tech.massB+tech.massR,k=3.9;                   // drag: F = k v^2 (single scull incl. rower)
+  const acc=new Float32Array(n),cm=new Float32Array(n),phs=new Float32Array(n),sp=new Float32Array(n),force=new Float32Array(n),vel=new Float32Array(n),inert=new Float32Array(n),prop=new Float32Array(n),rates=opts.rates||[22,28,34];
+  const rnd=opts.rnd||Math.random,vari=opts.vari||0;
+  let v=tech.speed[0],ph=0,last=-1,st=null;
+  const warm=Math.round(12*fs);
+  const strokeParams=(rate,target)=>{
+    const df=Math.min(0.55,tech.driveT*(1+0.01*(22-rate))*rate/60);
+    // scale force so the mean forward blade force balances drag at the target speed
+    let g=0;for(let q=0;q<400;q++){const P=phaseOf(q/400,df);if(P.drive===undefined)continue;
+      const hx=bodyJoints(techPose(tech,P)).hand[0];g+=handleForce(tech,P)*Math.cos(sweepFromHand(hx))}
+    g=2*g/400*RIG.IN/(RIG.OUT-RIG.BLADE/2);
+    return {df,F:k*target*target/g};
+  };
+  for(let i=-warm;i<n;i++){
+    const t=Math.max(0,i)/fs,ri=t<45?0:t<70?1:2,rate0=rates[ri],target0=tech.speed[ri];
+    if(Math.floor(ph)!==last){last=Math.floor(ph);const rate=rate0*(1+vari*0.4*(rnd()*2-1));
+      st={rate,...strokeParams(rate,target0*(1+vari*0.3*(rnd()*2-1)))};st.F*=1+vari*(rnd()*2-1)}
+    const p=ph-Math.floor(ph),P=phaseOf(p,st.df),J=bodyJoints(techPose(tech,P));
+    const ang=sweepFromHand(J.hand[0]);
+    const Fb=2*st.F*handleForce(tech,P)*RIG.IN/(RIG.OUT-RIG.BLADE/2)*Math.cos(ang);
+    // rower acceleration relative to the boat: central difference of the cm over +-2 ms
+    const dp=0.004*st.rate/60,cmAt=q=>bodyJoints(techPose(tech,phaseOf(((q%1)+1)%1,st.df))).cmx;
+    const ar=(cmAt(p+dp)-2*J.cmx+cmAt(p-dp))/(0.004*0.004);
+    const a=(Fb-k*v*Math.abs(v)-tech.massR*ar)/M;
+    v+=a*dt;
+    if(i>=0){acc[i]=a;cm[i]=J.cmx;phs[i]=p;sp[i]=P.drive!==undefined?P.drive:1+P.rec;force[i]=Fb/2/(RIG.IN/(RIG.OUT-RIG.BLADE/2))/Math.max(1e-3,Math.cos(ang));vel[i]=v;inert[i]=-tech.massR*ar/M;prop[i]=Fb/M}
+    ph+=st.rate/60/fs;
+  }
+  return {acc,cm,phase:phs,sp,force,vel,inert,prop};
+}
+
+// The boat examples are produced by the rower model above: the sculler's technique causes the curve.
+const BOAT_EXAMPLES={
+  front:{name:"Elite · front-loaded",rates:[22,28,34],var:0.02,rollNoise:0.3,
+    note:"Sequential, legs-first technique. The legs connect quickly at the catch: the rower's mass reversing direction gives a short, deep check, and the fast-rising blade force a first peak. The trunk takes over as the legs slow, so the boat keeps accelerating through the middle of the drive."},
+  late:{name:"Elite · late peak",rates:[22,28,34],var:0.02,rollNoise:0.3,
+    note:"Legs and trunk start together and share the drive. More of the body accelerates at once, so the check is broader; the biggest boat acceleration comes later in the drive, as legs and trunk slow down together while the blade force is still high."},
+  hump:{name:"Club · mid-drive hump",rates:[20,26,30],var:0.05,rollNoise:0.6,
+    note:"Legs first, then the trunk opens late and suddenly (double trunk work) while the handle force sags. That second burst of body acceleration pulls on the boat mid-drive: after the first peak the boat slows again (the hump) before a second peak."},
+  amateur:{name:"Amateur · slow catch, rushed slide",rates:[18,21,24],var:0.08,rollNoise:1.2,
+    note:"My estimate of a novice. The seat hurries up the slide and stops hard at the front stops (a dip before the catch), the blade goes in late while the body is already moving (a long, shallow check), the arms bend early and the force fades before the finish. Less reach, more variation from stroke to stroke, and a less stable set."}
+};
+function makeBoatDemo(kind="front"){
+  const ex=BOAT_EXAMPLES[kind]||BOAT_EXAMPLES.front;
+  const fs=200,T=90,n=fs*T,out={t:new Float64Array(n),n,mode:"boat",tech:kind,axis:"-Z"};   // sensor -Z points to the bow
+  for(const k of ["ax","ay","az","gx","gy","gz"])out[k]=new Float32Array(n);
+  const sim=simulateRowing(kind,fs,T,{rates:ex.rates,vari:ex.var});
+  out.sp=sim.sp;                                 // stroke phase, so the 3D sculler moves as simulated
+  let cmMean=0;for(let i=0;i<n;i++)cmMean+=sim.cm[i];cmMean/=n;
+  const rnd=()=>{let s=0;for(let k=0;k<4;k++)s+=Math.random();return (s-2)*0.87};
+  let prev=null,rollW=0,rollOff=0,lastStroke=-1;
+  const Rx=a=>[[1,0,0],[0,Math.cos(a),-Math.sin(a)],[0,Math.sin(a),Math.cos(a)]];
+  const Ry=a=>[[Math.cos(a),0,Math.sin(a)],[0,1,0],[-Math.sin(a),0,Math.cos(a)]];
+  const mul=(A,B)=>A.map(r=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
+  const tv=(A,v)=>[0,1,2].map(j=>A[0][j]*v[0]+A[1][j]*v[1]+A[2][j]*v[2]); // A^T v
+  for(let i=0;i<n;i++){
+    const t=i/fs,ph=sim.phase[i];
+    if(i&&ph<sim.phase[i-1]){lastStroke++;rollOff=ex.rollNoise*(Math.random()*2-1)}
+    const surge=sim.acc[i],heave=0.5*Math.sin(4*Math.PI*ph),sway=0.25*Math.sin(2*Math.PI*ph+1);
+    rollW+=(rollOff-rollW)*(1/fs/0.8);            // set: slow wander, larger for less stable crews
+    // trim follows the rower's mass: moving to the stern sinks the stern, so the bow comes up
+    // (Ry here tilts the bow down for a positive angle, hence the sign)
+    const pitch=2.2*D2R*(sim.cm[i]-cmMean),roll=D2R*(2*Math.sin(2*Math.PI*t/7)+0.8*Math.sin(2*Math.PI*ph)+2*rollW);
+    const R=mul(Ry(pitch),Rx(roll)),f=tv(R,[surge,sway,heave+G0]);
+    let w=[0,0,0];if(prev){const d=mul(prev.map((r,a)=>[0,1,2].map(b=>prev[b][a])),R);w=[(d[2][1]-d[1][2])/2*fs,(d[0][2]-d[2][0])/2*fs,(d[1][0]-d[0][1])/2*fs]}
+    prev=R;
+    // sensor x = -boat y, sensor y = boat z, sensor z = -boat x
+    const fa=[-f[1],f[2],-f[0]],wa=[-w[1],w[2],-w[0]];
+    out.t[i]=t;out.ax[i]=fa[0]/G0+rnd()*0.005;out.ay[i]=fa[1]/G0+rnd()*0.005;out.az[i]=fa[2]/G0+rnd()*0.005;
+    out.gx[i]=wa[0]*R2D+0.3+rnd()*0.2;out.gy[i]=wa[1]*R2D-0.2+rnd()*0.2;out.gz[i]=wa[2]*R2D+rnd()*0.2;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- boat drawing
+const PROF_PRE=0.15;   // the stroke profile starts this share of a stroke before the catch
+let profPin=null;      // stroke index held in place while the profile cursor is being dragged
+function drawProfile(cv,key,unit){
+  const {g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||!S.strokes)return;
+  const pinned=profPin!==null&&S.strokes[profPin]?profPin:null;
+  const k=pinned!==null?pinned:S.strokeAt(cursor),list=[];for(let j=k;j>=0&&list.length<10;j--)if(S.strokes[j].valid)list.unshift(S.strokes[j]);
+  if(!list.length){g.fillStyle=C.muted;g.font="13px "+getComputedStyle(document.body).fontFamily;g.fillText("No strokes yet",12,24);return}
+  const P=PROF_PRE,N=121,arr=S[key].a,t=S.t.a,U=q=>-P+(1+P)*q/(N-1);   // q index -> stroke fraction
+  const curves=list.map(s=>{const out=new Float32Array(N),T=t[s.n]-t[s.c];let i=S.idxAt(t[s.c]-P*T);
+    for(let q=0;q<N;q++){const tt=t[s.c]+T*U(q);while(i<s.n&&t[i+1]<=tt)i++;out[q]=arr[i]}return out});
+  const mean=new Float32Array(N);for(const c of curves)for(let q=0;q<N;q++)mean[q]+=c[q]/curves.length;
+  let mn=Infinity,mx=-Infinity;for(const c of curves)for(const v of c){if(v<mn)mn=v;if(v>mx)mx=v}
+  const pad=(mx-mn)*0.08||0.1;mn-=pad;mx+=pad;
+  const meanT=list.reduce((a,s)=>a+t[s.n]-t[s.c],0)/list.length;
+  const L=44,Rr=w-20,T=8,B=h-36,X=u=>L+(u+P)/(1+P)*(Rr-L),Y=v=>B-(v-mn)/(mx-mn)*(B-T);
+  const font=getComputedStyle(document.body).fontFamily;
+  // end of the previous recovery, lightly shaded
+  g.fillStyle=C.grid;g.globalAlpha=0.55;g.fillRect(L,T,X(0)-L,B-T);g.globalAlpha=1;
+  g.font="11px "+font;g.fillStyle=C.muted;g.textAlign="right";g.textBaseline="middle";
+  const ys=niceStep(mx-mn,5),dec=ys<0.1?2:ys<1?1:0;
+  for(let v=Math.ceil(mn/ys)*ys;v<=mx;v+=ys){const y=Y(v);g.strokeStyle=Math.abs(v)<ys/2?C.line:C.grid;g.beginPath();g.moveTo(L,y);g.lineTo(Rr,y);g.stroke();g.fillText(v.toFixed(dec),L-5,y)}
+  g.textAlign="center";g.textBaseline="top";
+  for(let q=0;q<=100;q+=25){const x=X(q/100);g.strokeStyle=C.grid;g.beginPath();g.moveTo(x,T);g.lineTo(x,B);g.stroke();
+    g.fillStyle=C.muted;g.fillText(q+"%",x,B+5);g.fillText((q/100*meanT).toFixed(2)+" s",x,B+19)}
+  g.textAlign="left";g.textBaseline="top";g.fillText(unit,L+4,T+2);
+  // catch (solid) and mean finish (dashed)
+  const xc=X(0);g.strokeStyle=C.muted;g.beginPath();g.moveTo(xc,T);g.lineTo(xc,B);g.stroke();
+  const fin=list.reduce((a,s)=>a+(t[s.f]-t[s.c])/(t[s.n]-t[s.c]),0)/list.length;
+  const xf=X(fin);g.setLineDash([4,3]);g.beginPath();g.moveTo(xf,T);g.lineTo(xf,B);g.stroke();g.setLineDash([]);
+  g.fillStyle=C.muted;g.fillText("finish",xf+4,B-16);g.fillText("catch",xc+4,B-16);
+  const line=(c,col,wd,al)=>{g.strokeStyle=col;g.lineWidth=wd;g.globalAlpha=al;g.beginPath();for(let q=0;q<N;q++){const x=X(U(q)),y=Y(c[q]);q?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();g.globalAlpha=1};
+  curves.forEach((c,j)=>{if(j<curves.length-1)line(c,C.hull,1,0.45)});
+  line(mean,C.accent,2.6,1);
+  line(curves[curves.length-1],C.blade,1.6,1);
+  // time indicator: where the current moment falls in its stroke
+  let frac=null;
+  const sk=k>=0?S.strokes[k]:null;
+  if(pinned!==null)frac=Math.max(-P,Math.min(1,(t[cursor]-t[sk.c])/Math.max(1e-3,t[sk.n]-t[sk.c])));   // dragging: lead-in included
+  else if(sk&&cursor>=sk.c&&cursor<sk.n)frac=(t[cursor]-t[sk.c])/Math.max(1e-3,t[sk.n]-t[sk.c]);
+  else if(S.catches&&S.catches.length){const lc=S.catches[S.catches.length-1];if(cursor>=lc){const e=(t[cursor]-t[lc])/meanT;if(e<=1)frac=e}}
+  // what a click or drag on this chart moves through: the stroke the cursor is in (or the latest)
+  const tgt=pinned!==null||(sk&&cursor>=sk.c&&cursor<sk.n)?sk:list[list.length-1];
+  cv._pmap={L,Rr,c:tgt.c,n:tgt.n,pre:P,idx:S.strokes.indexOf(tgt)};
+  if(frac!==null){
+    const mark=(u,al)=>{const x=X(u),y=Y(Math.max(mn,Math.min(mx,arr[cursor])));
+      g.globalAlpha=al;g.strokeStyle=C.ink;g.lineWidth=1;g.beginPath();g.moveTo(x,T);g.lineTo(x,B);g.stroke();
+      g.fillStyle=C.ink;g.beginPath();g.arc(x,y,4,0,7);g.fill();g.globalAlpha=1;return x};
+    // late in the recovery the moment also shows in the lead-in, just before the next catch
+    if(pinned===null&&frac>1-P)mark(frac-1,0.35);
+    const x=mark(frac,1);
+    const lab=(frac*meanT).toFixed(2)+" s · "+Math.round(frac*100)+"%";
+    g.font="600 11px "+font;g.textBaseline="top";
+    const tw=g.measureText(lab).width,right=x+6+tw<Rr;g.textAlign=right?"left":"right";
+    g.fillStyle=C.panel;g.fillRect(right?x+3:x-tw-7,T+1,tw+4,14);g.fillStyle=C.ink;g.fillText(lab,right?x+5:x-5,T+2);
+  }
+  g.lineWidth=1;
+}
+
+function updateBoatStats(){
+  const V=S.strokes.filter(s=>s.valid),avg=f=>V.length?V.reduce((a,s)=>a+f(s),0)/V.length:NaN;
+  const put=(id,v,u,dec)=>{$(id).innerHTML=isFinite(v)?(v>0&&(id.endsWith("Peak"))?"+":"")+v.toFixed(dec)+"<small class=u>"+u+"</small>":"–"};
+  const k=S.strokeAt(cursor);let s=null;for(let j=k;j>=0;j--)if(S.strokes[j].valid){s=S.strokes[j];break}
+  const recent=s&&S.t.a[cursor]-S.t.a[s.n]<5;
+  const rows=[["Rate",x=>x.rate,"spm",1],["Check",x=>x.check,"m/s²",1],["Peak",x=>x.peak,"m/s²",1],["Tpk",x=>x.tPeak,"ms",0],
+              ["Dv",x=>x.dv,"m/s",2],["Ratio",x=>x.ratio,"",2],["Set",x=>x.set,"°",1]];
+  for(const [n,f,u,d] of rows){put("ba"+n,avg(f),u,d);if(recent)put("bs"+n,f(s),u,d);else $("bs"+n).textContent="–"}
+  $("boatCount").textContent=V.length+" strokes detected"+(S.axisInfo?" · "+S.axisInfo:"");
+  $("boatInfo").textContent=S.axisInfo||"";
+}
+
+// ---------------------------------------------------------------- sonification (WebAudio)
+// Same mapping as the device speaker: tone at the centre pitch for zero acceleration,
+// one octave up per "range" m/s^2 of drive, down on the check.
+const snd={ctx:null,osc:null,gain:null,on:false};
+function soundToggle(){
+  try{
+    if(!snd.ctx){const AC=window.AudioContext||window.webkitAudioContext;snd.ctx=new AC();
+      snd.osc=snd.ctx.createOscillator();snd.osc.type="triangle";snd.gain=snd.ctx.createGain();snd.gain.gain.value=0;
+      snd.osc.connect(snd.gain).connect(snd.ctx.destination);snd.osc.start()}
+    snd.on=!snd.on;if(snd.on)snd.ctx.resume();
+    $("sndBtn").textContent=snd.on?"Browser sound on":"Browser sound off";$("sndBtn").classList.toggle("primary",snd.on);
+  }catch(e){setMsg("Sound is not available in this browser: "+e.message)}
+}
+function sndParams(){
+  return {center:+$("sndCenter").value||300,range:Math.max(0.2,+$("sndRange").value||2.5),
+          max:+$("sndMax").value||1.5,mute:+$("sndMute").value,vol:+$("sndVol").value||6};
+}
+function soundTick(){
+  if(!snd.ctx)return;const now=snd.ctx.currentTime;let target=0;
+  const active=snd.on&&S instanceof BoatSession&&S.n&&(playing||(mode==="live"&&follow));
+  const P=sndParams();
+  if(active&&S.rms.a[cursor]>P.mute){
+    const oct=Math.max(-P.max,Math.min(P.max,S.slp.a[cursor]/P.range));
+    snd.osc.frequency.setTargetAtTime(P.center*Math.pow(2,oct),now,0.012);target=0.18;
+  }
+  snd.gain.gain.setTargetAtTime(target,now,0.03);
+}
+
+// Device speaker settings: "P,hz,oct,vol,mute,maxoct,on" to set, "P?" to ask, "PT" test tone.
+// The device answers "SND hz oct vol mute maxoct on" (BLE status) or "P,..." (serial).
+const SND_DEF={sndCenter:300,sndRange:2.5,sndMax:1.5,sndMute:0.35,sndVol:6};
+const devSnd={known:false,on:null,lastEdit:-1e9,timer:0};
+function sndLabels(){
+  const P=sndParams();
+  $("oCenter").textContent=P.center+" Hz";$("oRange").textContent=P.range.toFixed(1)+" m/s²";
+  $("oMax").textContent="±"+P.max+" oct";$("oMute").textContent=P.mute.toFixed(2)+" m/s²";$("oVol").textContent=P.vol;
+}
+function sndDevUi(){
+  const c=!!conn;
+  $("devSndBtn").disabled=!c||!devSnd.known;$("sndTestBtn").disabled=!c||!devSnd.known;
+  $("devSndBtn").textContent=devSnd.on==null?"Device speaker –":devSnd.on?"Device speaker on":"Device speaker off";
+  $("devSndBtn").classList.toggle("primary",!!devSnd.on);
+  if(c&&devSnd.known)$("spkBtn").textContent=devSnd.on?"Device speaker: on":"Device speaker: off";
+  $("sndSync").textContent=!c?"No device connected. Settings apply to the browser sound.":
+    devSnd.known?"Device speaker follows these settings; they're saved on the device.":
+    "Waiting for the device's sound settings… (needs the updated firmware)";
+}
+function sndSend(extra){ // push the current slider values (and optionally on/off) to the device
+  if(!conn||!devSnd.known)return;
+  const P=sndParams();
+  const s="P,"+P.center+","+P.range+","+P.vol+","+P.mute+","+P.max+","+(extra==null?"":extra);
+  sendCmd(s,s+"\n");
+}
+function sndEdited(){
+  sndLabels();devSnd.lastEdit=performance.now();
+  clearTimeout(devSnd.timer);devSnd.timer=setTimeout(()=>sndSend(),150);
+}
+function sndFromDevice(f){ // f = [hz, oct, vol, mute, maxoct, on]
+  if(f.length<6||f.some(x=>!isFinite(x)))return;
+  const first=!devSnd.known;devSnd.known=true;devSnd.on=!!f[5];
+  if(performance.now()-devSnd.lastEdit>1200){ // don't snap sliders back while they're being dragged
+    $("sndCenter").value=f[0];$("sndRange").value=f[1];$("sndVol").value=f[2];$("sndMute").value=f[3];$("sndMax").value=f[4];sndLabels();
+  }
+  if(first)setMsg("");
+  sndDevUi();
+}
+function sndConnected(){
+  devModeUi(null);
+  devSnd.known=false;devSnd.on=null;sndDevUi();const c=conn;
+  for(const ms of [300,2500])setTimeout(()=>{if(conn===c&&!devSnd.known)sendCmd("P?","P?\n")},ms);
+}
+
+// ---------------------------------------------------------------- CSV parsing
+// Stroke-window logs from the older boat logger: StrokeID, Phase (PRE/STROKE), t_ms relative to a
+// stroke trigger, acceleration in m/s² (or g/mg), no gyro. Each STROKE block runs from one
+// trigger to the next and is capped (75 rows = 3 s at 25 Hz); the 1 s PRE blocks are skipped
+// because that logger mostly repeats a stale buffer there. The STROKE blocks are laid end to end
+// to rebuild a timeline; after a capped block the real pause is unknown and a 1 s gap is used.
+// The viewer's own boat analysis then finds the catches.
+function parseStrokeWindows(lines,hdr,li){
+  const col=n=>hdr.findIndex(h=>h===n||h.startsWith(n+"_"));
+  const iS=col("strokeid"),iP=col("phase"),iT=col("t"),iA=["ax","ay","az"].map(col);
+  if(iT<0||iA.some(i=>i<0))throw new Error("Stroke log: could not find t_ms and ax…az columns in: "+hdr.join(", "));
+  const u=hdr[iA[0]].slice(hdr[iA[0]].indexOf("_")+1);
+  const aScale=/ms2|m\/s/.test(u)?1/9.80665:/mg/.test(u)?1e-3:1;
+  const wins=[];let cur=null;
+  for(;li<lines.length;li++){
+    const L=lines[li];if(!L||L[0]==="#")continue;
+    const p=L.split(/[,;\t]/);
+    if((p[iP]||"").trim().toUpperCase()==="PRE")continue;
+    const id=p[iS].trim(),t=parseFloat(p[iT]);if(!isFinite(t))continue;
+    if(!cur||cur.id!==id){cur={id,rows:[]};wins.push(cur)}
+    cur.rows.push([t,parseFloat(p[iA[0]])*aScale,parseFloat(p[iA[1]])*aScale,parseFloat(p[iA[2]])*aScale]);
+  }
+  const cap=Math.max(...wins.map(w=>w.rows.length));
+  const n=wins.reduce((a,w)=>a+w.rows.length,0),out={t:new Float64Array(n),n,mode:"boat",cal:[]};
+  for(const k of ["ax","ay","az","gx","gy","gz"])out[k]=new Float32Array(n);
+  let T=0,i=0,gaps=0;
+  for(const w of wins){
+    const r=w.rows,dt=r.length>1?(r[r.length-1][0]-r[0][0])/(r.length-1):40;
+    for(const [t,ax,ay,az] of r){out.t[i]=T+t/1000;out.ax[i]=ax;out.ay[i]=ay;out.az[i]=az;i++}
+    T+=(r[r.length-1][0]+dt)/1000;                  // the next trigger: where this block ended
+    if(r.length>=cap){out.gaps=out.gaps||[];out.gaps.push(T+1);T+=1;gaps++}   // capped: the real pause is unknown
+  }
+  // keep time strictly increasing (a block can start a few ms before the previous one ended)
+  for(let k=1;k<n;k++)if(out.t[k]<=out.t[k-1])out.t[k]=out.t[k-1]+0.001;
+  const t0=out.t[0];for(let k=0;k<n;k++)out.t[k]-=t0;
+  if(out.gaps)out.gaps=out.gaps.map(g=>[g-1-t0,g-t0]);  // [start, end] of each inserted pause
+  // Fore-aft direction from the windows themselves: the axis along which the within-window pattern
+  // is strongest, pointed so that the catch check (which this logger's trigger follows closely,
+  // so it sits at the end of each window) is negative.
+  {const up=[0,0,0];for(let k=0;k<n;k++){up[0]+=out.ax[k];up[1]+=out.ay[k];up[2]+=out.az[k]}
+   const un=norm(up),C=[[0,0,0],[0,0,0],[0,0,0]],full=wins.filter(w=>w.rows.length>=12&&w.rows.length<cap);
+   const hor=r=>{const a=[r[1],r[2],r[3]],d=dot(a,un);return [a[0]-d*un[0],a[1]-d*un[1],a[2]-d*un[2]]};
+   for(const w of full){const H=w.rows.map(hor),m=[0,1,2].map(q=>H.reduce((a,h)=>a+h[q],0)/H.length);
+     for(const h of H)for(let r=0;r<3;r++)for(let q=0;q<3;q++)C[r][q]+=(h[r]-m[r])*(h[q]-m[q])}
+   let e=norm(cross(un,[0,0,1]).map((v,q)=>v+[0.3,0.2,0.1][q]));
+   for(let it=0;it<50;it++){const v=[0,1,2].map(r=>dot(C[r],e));const d=dot(v,un);e=norm([v[0]-d*un[0],v[1]-d*un[1],v[2]-d*un[2]])}
+   let end=0,cnt=0;for(const w of full){const H=w.rows.map(hor),pr=H.map(h=>dot(h,e)),m=pr.reduce((a,b)=>a+b,0)/pr.length;
+     for(let q=Math.floor(pr.length*0.75);q<pr.length;q++){end+=pr[q]-m;cnt++}}
+   if(full.length>=20){if(end>0)e=e.map(v=>-v);out.axisVec=e}}
+  out.note=`stroke-window log: ${wins.length} windows laid end to end, no gyro`+(gaps?`, ${gaps} pauses over 3 s shortened to 1 s`:"");
+  return out;
+}
+function parseCSV(text){
+  const lines=text.split(/\r?\n/);let fileMode=null;
+  let hdr=null,li=0;
+  for(;li<lines.length;li++){
+    const L=lines[li].trim();if(!L)continue;
+    if(L[0]==="#"){const mm=/^#\s*mode\s*=\s*(\w+)/i.exec(L);if(mm)fileMode=mm[1].toLowerCase();continue}
+    if(/[a-z]/i.test(L)){hdr=L.split(/[,;\t]/).map(s=>s.trim().toLowerCase());li++;}
+    break;
+  }
+  if(!hdr)hdr=["t_ms","ax_mg","ay_mg","az_mg","gx_ddps","gy_ddps","gz_ddps"];
+  if(hdr.includes("strokeid")&&hdr.includes("phase"))return parseStrokeWindows(lines,hdr,li);
+  const find=p=>hdr.findIndex(h=>h===p||h.startsWith(p+"_")||h.startsWith(p+" ")||h.startsWith(p+"("));
+  const ti=hdr.findIndex(h=>/^(t|time|timestamp)(\b|_|\s|\()/.test(h));
+  const cols=["ax","ay","az","gx","gy","gz"].map(find);
+  if(ti<0||cols.some(c=>c<0))throw new Error("Could not find t, ax…az, gx…gz columns in the header: "+hdr.join(", "));
+  const unit=h=>h.slice(h.search(/[_ (]/)+1).replace(/[()]/g,"");
+  const tu=unit(hdr[ti]);
+  const tScale=/us|µs/.test(tu)?1e-6:/ms/.test(tu)?1e-3:/^s$|sec/.test(tu)?1:null;
+  const aScale=/mg/.test(unit(hdr[cols[0]]))?1e-3:/ms2|m\/s/.test(unit(hdr[cols[0]]))?1/9.80665:1;
+  const gu=unit(hdr[cols[3]]);
+  const gScale=/ddps/.test(gu)?0.1:/mdps/.test(gu)?1e-3:/rad/.test(gu)?R2D:1;
+  const N=lines.length-li, out={t:new Float64Array(N)};
+  const keys=["ax","ay","az","gx","gy","gz"];
+  for(const k of keys)out[k]=new Float32Array(N);
+  let n=0;const cals=[];
+  for(;li<lines.length;li++){
+    const L=lines[li];if(!L)continue;
+    if(L[0]==="#"){const m=/^#\s*CAL\s*[,=:]?\s*(-?[\d.]+)/i.exec(L);if(m)cals.push(parseFloat(m[1]));continue}
+    const p=L.split(/[,;\t]/);
+    const tv=parseFloat(p[ti]);if(!isFinite(tv))continue;
+    out.t[n]=tv;
+    for(let k=0;k<6;k++)out[keys[k]][n]=parseFloat(p[cols[k]])*(k<3?aScale:gScale);
+    n++;
+  }
+  let ts=tScale;
+  if(ts===null){const span=out.t[n-1]-out.t[0];ts=span>5000?1e-3:1}
+  const t0=out.t[0];
+  for(let i=0;i<n;i++)out.t[i]=(out.t[i]-t0)*ts;
+  out.n=n;out.cal=cals.map(v=>(v-t0)*ts);out.mode=fileMode;
+  return out;
+}
+
+// ---------------------------------------------------------------- demo data
+function makeDemo(){
+  const fs=200,T=80,n=fs*T,out={t:new Float64Array(n),n};
+  for(const k of ["ax","ay","az","gx","gy","gz"])out[k]=new Float32Array(n);
+  const smooth=x=>x<=0?0:x>=1?1:(1-Math.cos(Math.PI*x))/2;
+  const band=(p,a,b,r)=>smooth((p-(a-r))/r)*(1-smooth((p-b)/r));
+  const bias=[0.6,-0.4,0.25];let phase=0,prevR=null;
+  const rnd=()=>{let s=0;for(let k=0;k<4;k++)s+=Math.random();return (s-2)*0.87};
+  for(let i=0;i<n;i++){
+    const t=i/fs,rate=t<35?20:t<60?28:34;
+    const blend=smooth((t-3)/2);
+    if(t>4)phase=(phase+rate/60/fs)%1;
+    const p=phase, catchA=-54+(rate-20)*0.2, finA=33;
+    let psi;
+    if(p>=0.05&&p<0.45)psi=catchA+(finA-catchA)*smooth((p-0.05)/0.4);
+    else{const r=((p<0.05?p+1:p)-0.45)/0.6;psi=finA+(catchA-finA)*smooth(r)}
+    const theta=3.5+(-5-3.5)*band(p,0.05,0.45,0.04);
+    const phi=90*band(p,0.55,0.9,0.08);
+    const heading=0.35*t+4*Math.sin(0.07*t);
+    const P=(psi*blend+heading)*D2R, Th=(-3+(theta+3)*blend)*D2R, Ph=(90+(phi-90)*blend)*D2R;
+    const {s,u}=oarVectors(P,Th,Ph), y=cross(u,s);
+    const R=[s,y,u]; // columns (body axes in world)
+    const gB=[R[0][2],R[1][2],R[2][2]];
+    out.t[i]=t;
+    const tap=[1.2,1.5,1.8].some(tt=>Math.abs(t-tt)<0.006)?1.4:0; // three taps on the gunwale
+    out.ax[i]=gB[0]+rnd()*0.01+(blend*0.08*Math.sin(2*Math.PI*p))+tap;
+    out.ay[i]=gB[1]+rnd()*0.01;out.az[i]=gB[2]+rnd()*0.01;
+    let w=[0,0,0];
+    if(prevR){ // body rate from rotation increment
+      const A=(a,b)=>dot(prevR[a],R[b]);
+      w=[(A(2,1)-A(1,2))/2*fs*R2D,(A(0,2)-A(2,0))/2*fs*R2D,(A(1,0)-A(0,1))/2*fs*R2D];
+    }
+    prevR=R;
+    out.gx[i]=w[0]+bias[0]+rnd()*0.3;out.gy[i]=w[1]+bias[1]+rnd()*0.3;out.gz[i]=w[2]+bias[2]+rnd()*0.3;
+    out.ax[i]-=((w[1]*D2R)**2+(w[2]*D2R)**2)*0.3/9.80665; // centripetal, sensor 0.3 m outboard of the pin
+  }
+  out.cal=[2.3];
+  return out;
+}
+
+// ---------------------------------------------------------------- app state
+let S=null, src=null, srcName="", mode="none", cursor=0, playing=false, follow=false, dirty=true;
+let conn=null; // {type:'ble'|'serial', ...}
+let liveOff=0, liveLastT=-1;
+
+function cfg(){return{shaft:$("axShaft").value,up:$("axUp").value,
+  driftWin:Math.max(4,+$("driftWin").value||15),hyst:Math.max(5,+$("hyst").value||15)}}
+function setMsg(t){$("msg").textContent=t||""}
+function setChip(txt,cls){$("chipTxt").textContent=txt;$("chip").className="chip "+(cls||"")}
+
+// Work out how the sensor sits on the oar from the recording itself:
+//  - the shaft stays near horizontal, so the shaft axis is the one carrying the least gravity;
+//  - which end is the blade: the sensor feels centripetal acceleration toward the pin as the
+//    oar swings, so the sign of (shaft acceleration vs. rotation rate squared) plus the
+//    "outboard/inboard" setting says which way the blade is;
+//  - the up axis is the other axis that carries gravity during the drive (blade squared)
+//    but not during the recovery (blade feathered).
+function detectMounting(cols){
+  const n=cols.n,A=[cols.ax,cols.ay,cols.az],G=[cols.gx,cols.gy,cols.gz],XYZ="XYZ";
+  const m=[0,0,0];let c=0;
+  for(let i=0;i<n;i+=2){const an=Math.hypot(A[0][i],A[1][i],A[2][i]);if(Math.abs(an-1)>0.25)continue;
+    for(let k=0;k<3;k++)m[k]+=Math.abs(A[k][i]);c++}
+  if(c<500)return null;
+  for(let k=0;k<3;k++)m[k]/=c;
+  const srt=[...m].sort((a,b)=>a-b),si=m.indexOf(srt[0]);
+  if(srt[0]>0.45||srt[1]-srt[0]<0.15)return null;
+  let sw=0,sa=0,sww=0,swa=0;
+  for(let i=0;i<n;i++){let w2=0;for(let k=0;k<3;k++)if(k!==si)w2+=(G[k][i]*D2R)**2;
+    const a=A[si][i]*9.80665;sw+=w2;sa+=a;sww+=w2*w2;swa+=w2*a}
+  const slope=(n*swa-sw*sa)/((n*sww-sw*sw)||1); // = minus the sensor's distance from the pin along +axis (m)
+  let sign;
+  if(Math.abs(slope)>0.04)sign=((slope<0)===($("mountSide").value==="out"))?1:-1;
+  else{const cur=$("axShaft").value;sign=XYZ.indexOf(cur[1])===si&&cur[0]==="-"?-1:1}
+  const shaft=(sign>0?"+":"-")+XYZ[si],others=[0,1,2].filter(k=>k!==si),cf=cfg();
+  const tmp=new Session({shaft,up:"+"+XYZ[others[0]],driftWin:cf.driftWin,hyst:cf.hyst},false);
+  for(let i=0;i<n;i++)tmp.append(cols.t[i],A[0][i],A[1][i],A[2][i],G[0][i],G[1][i],G[2][i]);
+  tmp.finalize();
+  const V=tmp.strokes.filter(s=>s.valid);let up;
+  if(V.length>=5){
+    const sc=others.map(k=>{let d=0,dc=0,r=0,rc=0;
+      for(const s of V){for(let i=s.c;i<s.f;i++){d+=A[k][i];dc++}for(let i=s.f;i<s.n;i++){r+=A[k][i];rc++}}
+      const md=d/dc,mr=r/rc;return {k,score:Math.abs(md)-Math.abs(mr),sgn:md>=0?1:-1}});
+    sc.sort((a,b)=>b.score-a.score);up=(sc[0].sgn>0?"+":"-")+XYZ[sc[0].k];
+  }else{
+    const k=m[others[0]]>=m[others[1]]?others[0]:others[1];let mean=0;for(let i=0;i<n;i+=4)mean+=A[k][i];
+    up=(mean>=0?"+":"-")+XYZ[k];
+  }
+  return {shaft,up,dist:Math.abs(slope),signFromData:Math.abs(slope)>0.04,strokes:V.length};
+}
+function applyMounting(cols){
+  const info=$("mountInfo");
+  $("axShaft").disabled=$("axUp").disabled=$("mountMode").value==="auto";
+  if($("mountMode").value!=="auto"){info.textContent="Using the axes set by hand.";return true}
+  const d=detectMounting(cols);
+  if(!d){info.textContent="Couldn't detect the mounting yet (needs some rowing). Using: shaft "+$("axShaft").value+", up "+$("axUp").value+".";return false}
+  $("axShaft").value=d.shaft;$("axUp").value=d.up;
+  info.textContent=`Detected: shaft toward blade = ${d.shaft}, up (blade squared) = ${d.up}`+
+    (d.signFromData?` · sensor ≈ ${d.dist.toFixed(2)} m ${$("mountSide").value==="out"?"outboard":"inboard"} of the pin`:" · blade direction not measurable, kept the current sign")+
+    (d.strokes>=5?` · from ${d.strokes} strokes`:" · up axis is a guess until there are strokes");
+  return d.strokes>=5;
+}
+let dataMode="oar";
+function effMode(){const v=$("viewMode").value;return v==="auto"?dataMode:v}
+function cfgBoat(cols){const v=$("boatAxis").value;
+  if(v==="auto"&&cols&&cols.axis)return {boatAxis:cols.axis,known:true};
+  if(v==="auto"&&cols&&cols.axisVec)return {boatAxis:cols.axisVec,known:true,fromTrigger:true};
+  return {boatAxis:v}}
+function applyLayout(){
+  const b=effMode()==="boat";
+  $("refPanel").hidden=!(b&&$("refPanel").dataset.has);
+  $("oarMain").hidden=b;$("oarPlots").hidden=b;$("oarSettings").hidden=b;$("mountInfo").hidden=b;
+  $("boatMain").hidden=!b;$("boatPlots").hidden=!b;
+  dirty=true;
+}
+function buildFromColumns(cols){
+  applyLayout();
+  if(effMode()==="boat"){
+    S=new BoatSession(cfgBoat(cols),false);
+    for(let i=0;i<cols.n;i++)S.append(cols.t[i],cols.ax[i],cols.ay[i],cols.az[i],cols.gx[i],cols.gy[i],cols.gz[i]);
+    S.finalize();
+    // strokes that span a pause in a stroke-window log have no real data there: leave them out
+    if(cols.gaps)for(const st of S.strokes){const a=S.t.a[st.c],b=S.t.a[st.n];if(cols.gaps.some(([g0,g1])=>g1>a&&g0<b))st.valid=false}
+    cursor=0;playing=false;$("playBtn").textContent="Play";dirty=true;return;
+  }
+  applyMounting(cols);
+  const c=cfg(); if(axisVec(c.shaft).some((v,k)=>v&&axisVec(c.up)[k])){setMsg("Shaft and up axes must be different.");return}
+  S=new Session(c,false);
+  for(let i=0;i<cols.n;i++)S.append(cols.t[i],cols.ax[i],cols.ay[i],cols.az[i],cols.gx[i],cols.gy[i],cols.gz[i]);
+  S.cals=(cols.cal||[]).filter(v=>v>=0&&v<=cols.t[cols.n-1]);
+  S.finalize();
+  cursor=0;playing=false;$("playBtn").textContent="Play";dirty=true;
+}
+function loadColumns(cols,name,m){
+  src=cols;srcName=name;mode=m;follow=false;dataMode=guessMode(cols);
+  buildFromColumns(cols);
+  const dur=cols.n?cols.t[cols.n-1]:0;
+  $("srcInfo").textContent=`${cols.n.toLocaleString()} samples · ${fmtT(dur)} · ${Math.round(cols.n/Math.max(dur,1e-3))} Hz`;
+  setChip(m==="demo"?"Example: "+name+" (synthetic)":name,"");
+  const ex=m==="demo"?(BOAT_EXAMPLES[exKey]||null):null;
+  $("exNote").hidden=!ex;$("exNote").textContent=ex?ex.note:"";
+  if(ex){const p=document.createElement("span");p.className="exsrc";p.append(" Kleshnev's measured curves: ");
+    EX_SOURCES.forEach(([txt,url],i)=>{const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent=txt;if(i)p.append(" · ");p.append(a)});
+    $("exNote").append(p)}
+  if(m!=="demo")$("exSel").value="";
+  const i=S.strokes.find(s=>s.valid);cursor=i?Math.min(S.n-1,i.n+ Math.round(S.n*0.1)):0;
+  if(m==="demo")cursor=S.idxAt(dataMode==="boat"?60:40);
+}
+async function openFile(file){
+  try{setMsg("Reading "+file.name+" …");const txt=await file.text();
+    const cols=parseCSV(txt);if(cols.n<50)throw new Error("File has too few samples.");
+    disconnect();loadColumns(cols,file.name,"file");setMsg("");
+    if(cols.note)$("srcInfo").textContent+=" · "+cols.note;
+  }catch(e){setMsg(e.message)}
+}
+
+// ---------------------------------------------------------------- live
+let liveRaw=null,liveDetected=false,liveNextDetect=40;
+function liveCols(){const r=liveRaw,o={n:r.t.n,t:r.t.a};for(const k of ["ax","ay","az","gx","gy","gz"])o[k]=r[k].a;return o}
+function newLiveSession(){applyLayout();return effMode()==="boat"?new BoatSession(cfgBoat(),true):new Session(cfg(),true)}
+function rebuildLive(){
+  const cals=S&&S.cals?S.cals.slice():[],cols=liveCols();
+  S=newLiveSession();
+  for(let i=0;i<cols.n;i++){S.append(cols.t[i],cols.ax[i],cols.ay[i],cols.az[i],cols.gx[i],cols.gy[i],cols.gz[i]);}
+  if(S.addCal)for(const c of cals)S.addCal(c);
+  if(follow)cursor=S.n-1;else cursor=Math.min(cursor,S.n-1);dirty=true;
+}
+function liveStart(label){
+  $("exNote").hidden=true;$("exSel").value="";
+  mode="live";src=null;follow=true;playing=false;liveOff=0;liveLastT=-1;
+  liveRaw={t:new Buf(Float64Array)};for(const k of ["ax","ay","az","gx","gy","gz"])liveRaw[k]=new Buf();
+  liveDetected=false;liveNextDetect=40;
+  S=newLiveSession();cursor=0;dirty=true;
+  setChip(label,"live");$("srcInfo").textContent="Live · 50 Hz";$("devPanel").hidden=false;
+}
+let devMode=null;
+function devModeUi(dm){
+  devMode=dm;
+  for(const [id,v] of [["modeOarBtn","OAR"],["modeBoatBtn","BOAT"]])$(id).setAttribute("aria-pressed",String(dm===v));
+}
+function setDevMode(target){
+  if(!conn||devMode===target)return;
+  sendCmd({OAR:"MO",BOAT:"MB"}[target],{OAR:"o",BOAT:"b"}[target]);
+}
+function liveStatus(txt){
+  if(txt.startsWith("SND ")){sndFromDevice(txt.slice(4).trim().split(/\s+/).map(Number));return}
+  $("devTxt").textContent=txt;
+  const m=/^\[(OAR|BOAT)\]/.exec(txt);
+  if(m)devModeUi(m[1]);
+  if(m){const dm=m[1].toLowerCase();if(dm!==dataMode){dataMode=dm;if($("viewMode").value==="auto"&&liveRaw)rebuildLive()}}
+}
+function sendCmd(ble,ser){ // one GATT write at a time: queue them
+  const c=conn;if(!c)return Promise.resolve();
+  c.q=(c.q||Promise.resolve()).then(async()=>{
+    if(conn!==c)return;
+    try{if(c.type==="ble")await c.ctrl.writeValue(new TextEncoder().encode(ble));else await c.send(ser)}catch(e){setMsg(e.message)}
+  });
+  return c.q;
+}
+function liveCal(tms){if(!S||!S.addCal)return;S.addCal(tms/1000+liveOff);dirty=true;setMsg("");$("devTxt").textContent="Zero set by tap calibration"}
+function liveSample(tms,a,g){ // a in mg, g in 0.1 dps
+  let t=tms/1000+liveOff;
+  if(liveLastT>=0&&t<liveLastT-0.5){liveOff+=liveLastT-t+0.02;t=tms/1000+liveOff}
+  liveLastT=t;
+  const v=[a[0]/1000,a[1]/1000,a[2]/1000,g[0]/10,g[1]/10,g[2]/10];
+  liveRaw.t.push(t);["ax","ay","az","gx","gy","gz"].forEach((k,j)=>liveRaw[k].push(v[j]));
+  S.append(t,...v);
+  if(follow)cursor=S.n-1;dirty=true;
+  if(effMode()==="oar"&&!liveDetected&&$("mountMode").value==="auto"&&t>=liveNextDetect){ // re-check mounting every 20 s until settled
+    liveNextDetect=t+20;const before=$("axShaft").value+$("axUp").value;
+    liveDetected=applyMounting(liveCols());
+    if($("axShaft").value+$("axUp").value!==before)rebuildLive();
+  }
+}
+const SVC="7a1e0001-5c3b-4b8e-9f2a-6f6172000001",DATA="7a1e0002-5c3b-4b8e-9f2a-6f6172000001",
+      STAT="7a1e0003-5c3b-4b8e-9f2a-6f6172000001",CTRL="7a1e0004-5c3b-4b8e-9f2a-6f6172000001";
+async function connectBLE(){
+  if(!navigator.bluetooth){setMsg("This browser has no Web Bluetooth. Use Chrome or Edge, and open this page directly rather than embedded.");return}
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]}]});
+    setMsg("Connecting to "+dev.name+" …");
+    const gatt=await dev.gatt.connect(),svc=await gatt.getPrimaryService(SVC);
+    const data=await svc.getCharacteristic(DATA),stat=await svc.getCharacteristic(STAT),ctrl=await svc.getCharacteristic(CTRL);
+    disconnect();
+    conn={type:"ble",dev,ctrl};
+    dev.addEventListener("gattserverdisconnected",()=>{if(conn&&conn.dev===dev){conn=null;setChip("Bluetooth disconnected","err");$("devPanel").hidden=true;sndDevUi()}});
+    liveStart("Live · "+(dev.name||"RowLog")+" (Bluetooth)");
+    data.addEventListener("characteristicvaluechanged",e=>{
+      const v=e.target.value;if(v.byteLength<16)return;
+      liveSample(v.getUint32(0,true),[v.getInt16(4,true),v.getInt16(6,true),v.getInt16(8,true)],[v.getInt16(10,true),v.getInt16(12,true),v.getInt16(14,true)]);
+    });
+    stat.addEventListener("characteristicvaluechanged",e=>{const txt=new TextDecoder().decode(e.target.value);
+      if(txt.startsWith("CAL "))liveCal(+txt.slice(4));else liveStatus(txt)});
+    await data.startNotifications();await stat.startNotifications();
+    try{liveStatus(new TextDecoder().decode(await stat.readValue()))}catch(_){}
+    setMsg("");sndConnected();
+  }catch(e){setMsg(e.name==="NotFoundError"?"No device chosen.":e.name==="SecurityError"?"Bluetooth is blocked in this embedded view. Download the page and open it directly in Chrome or Edge.":e.message)}
+}
+async function connectSerial(){
+  if(!navigator.serial){setMsg("This browser has no Web Serial. Use Chrome or Edge on a computer, and open this page directly rather than embedded.");return}
+  try{
+    const port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    disconnect();
+    const enc=new TextEncoder(),writer=port.writable.getWriter();
+    await writer.write(enc.encode("1\n"));
+    const reader=port.readable.pipeThrough(new TextDecoderStream()).getReader();
+    conn={type:"serial",port,writer,reader,send:s=>writer.write(enc.encode(s))};
+    liveStart("Live · USB serial");
+    (async()=>{
+      let buf="";
+      try{
+        for(;;){const {value,done}=await reader.read();if(done)break;buf+=value;
+          let k;while((k=buf.indexOf("\n"))>=0){const L=buf.slice(0,k).trim();buf=buf.slice(k+1);
+            if(L.startsWith("D,")){const p=L.split(",").map(Number);if(p.length>=8)liveSample(p[1],[p[2],p[3],p[4]],[p[5],p[6],p[7]])}
+            else if(L.startsWith("S,"))liveStatus(L.slice(2));
+            else if(L.startsWith("C,"))liveCal(+L.slice(2));
+            else if(L.startsWith("P,"))sndFromDevice(L.slice(2).split(",").map(Number));
+          }}
+      }catch(_){}
+    })();
+    setMsg("");sndConnected();
+  }catch(e){setMsg(e.name==="NotFoundError"?"No port chosen.":e.name==="SecurityError"?"USB access is blocked in this embedded view. Download the page and open it directly in Chrome or Edge.":e.message)}
+}
+async function disconnect(){
+  const c=conn;conn=null;$("devPanel").hidden=true;sndDevUi();if(!c)return;
+  try{
+    if(c.type==="ble")c.dev.gatt.disconnect();
+    else{await c.send("0\n");await c.reader.cancel();c.writer.releaseLock();await c.port.close()}
+  }catch(_){}
+  if(mode==="live"){setChip("Live session ended","");follow=false;if(S&&S.n>50){S.live=false;if(S instanceof BoatSession)rebuildLiveAsFile();else S.finalize();dirty=true}}
+}
+function rebuildLiveAsFile(){ // after a live boat session: redo it with the whole-file analysis
+  const cols=liveCols(),c={n:cols.n,t:Float64Array.from(cols.t.subarray(0,cols.n))};
+  for(const k of ["ax","ay","az","gx","gy","gz"])c[k]=Float32Array.from(cols[k].subarray(0,cols.n));
+  c.mode="boat";src=c;mode="file";buildFromColumns(c);cursor=S.n-1;
+}
+function toggleLog(){return sendCmd("L","L")}
+
+// ---------------------------------------------------------------- drawing helpers
+let C={};
+function readColors(){const cs=getComputedStyle(document.documentElement);
+  for(const k of ["ink","muted","line","grid","accent","blade","water","hull","panel","ok"])C[k]=cs.getPropertyValue("--"+k).trim()}
+function fit(cv){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  const w=Math.max(1,Math.round(r.width*d)),h=Math.max(1,Math.round(r.height*d));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
+  const g=cv.getContext("2d");g.setTransform(d,0,0,d,0,0);return {g,w:r.width,h:r.height}}
+const fmtT=s=>{s=Math.max(0,s);const m=Math.floor(s/60);return m+":"+(s-m*60).toFixed(1).padStart(4,"0")};
+const fmtA=v=>(v>0?"+":"")+v.toFixed(0)+"°";
+function niceStep(span,target){const r=span/target,p=Math.pow(10,Math.floor(Math.log10(r))),m=r/p;return (m<1.5?1:m<3?2:m<7?5:10)*p}
+
+function viewRange(){
+  if(!S||!S.n)return [0,1];
+  const tEnd=S.t.a[S.n-1],tc=S.t.a[cursor],W=+$("win").value;
+  if(!W)return [0,Math.max(tEnd,1)];
+  if(follow)return [tc-W,tc];
+  let a=tc-W/2,b=tc+W/2;if(a<0){b-=a;a=0}if(b>tEnd&&tEnd>W){a-=b-tEnd;b=tEnd}
+  return [a,b];
+}
+
+function drawPlot(cv,arr,color,opts={}){
+  const {g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||S.n<2)return;
+  const [t0,t1]=viewRange(),t=S.t.a,L=40,R=w-8,T=8,B=h-20,PW=R-L;
+  let i0=Math.max(0,S.idxAt(t0)-1),i1=Math.min(S.n-1,S.idxAt(t1)+1);
+  let mn=Infinity,mx=-Infinity;
+  for(let i=i0;i<=i1;i++){const v=arr.a[i];if(v<mn)mn=v;if(v>mx)mx=v}
+  if(opts.range){mn=Math.min(mn,opts.range[0]);mx=Math.max(mx,opts.range[1])}
+  const pad=(mx-mn)*0.08+(opts.minPad??1);mn-=pad;mx+=pad;
+  const X=tt=>L+(tt-t0)/(t1-t0)*PW,Y=v=>B-(v-mn)/(mx-mn)*(B-T);
+  g.font="11px "+getComputedStyle(document.body).fontFamily;g.lineWidth=1;
+  const ys=niceStep(mx-mn,4);
+  g.fillStyle=C.muted;g.textAlign="right";g.textBaseline="middle";
+  const unit=opts.unit??"°",ydec=ys<0.1?2:ys<1?1:0;
+  for(let v=Math.ceil(mn/ys)*ys;v<=mx;v+=ys){const y=Y(v);g.strokeStyle=Math.abs(v)<ys/2?C.line:C.grid;g.beginPath();g.moveTo(L,y);g.lineTo(R,y);g.stroke();g.fillText(v.toFixed(ydec)+(unit==="°"?"°":""),L-5,y)}
+  if(unit!=="°"){g.save();g.textAlign="left";g.textBaseline="top";g.fillText(unit,L+4,T+2);g.restore()}
+  const xs=niceStep(t1-t0,Math.max(2,PW/90));
+  g.textAlign="center";g.textBaseline="top";
+  for(let v=Math.ceil(t0/xs)*xs;v<=t1;v+=xs){const x=X(v);g.strokeStyle=C.grid;g.beginPath();g.moveTo(x,T);g.lineTo(x,B);g.stroke();g.fillText(fmtT(v).replace(/\.0$/,""),x,B+5)}
+  // strokes shading (drive)
+  if(opts.drives){g.fillStyle=C.water;g.globalAlpha=0.35;
+    for(const s of S.strokes){if(!s.valid||t[s.f]<t0||t[s.c]>t1)continue;const a=Math.max(L,X(t[s.c])),b=Math.min(R,X(t[s.f]));g.fillRect(a,T,b-a,B-T)}
+    g.globalAlpha=1}
+  g.save();g.beginPath();g.rect(L,T,PW,B-T);g.clip();
+  g.strokeStyle=color;g.lineWidth=1.6;g.lineJoin="round";g.beginPath();
+  if(i1-i0<PW*2){for(let i=i0;i<=i1;i++){const x=X(t[i]),y=Y(arr.a[i]);i===i0||t[i]-t[i-1]>0.5?g.moveTo(x,y):g.lineTo(x,y)}}   // break the line at gaps
+  else{let col=-1,lo=0,hi=0,first=true;
+    const flush=()=>{if(col<0)return;const x=L+col;if(first){g.moveTo(x,Y(lo));first=false}else g.lineTo(x,Y(lo));g.lineTo(x,Y(hi))};
+    for(let i=i0;i<=i1;i++){const c=Math.floor(X(t[i])-L),v=arr.a[i];
+      if(c!==col){flush();col=c;lo=hi=v}else{if(v<lo)lo=v;if(v>hi)hi=v}}
+    flush()}
+  g.stroke();
+  if(opts.markers){
+    for(const s of S.strokes){if(!s.valid)continue;
+      for(const [idx,up] of [[s.c,true],[s.f,false]]){const tt=t[idx];if(tt<t0||tt>t1)continue;
+        const x=X(tt),y=Y(arr.a[idx]);g.fillStyle=up?C.blade:C.accent;g.beginPath();
+        if(up){g.moveTo(x,y-9);g.lineTo(x-5,y-1);g.lineTo(x+5,y-1)}else{g.moveTo(x,y+9);g.lineTo(x-5,y+1);g.lineTo(x+5,y+1)}g.fill()}}
+  }
+  if(opts.cals){g.setLineDash([4,3]);g.strokeStyle=C.ok;g.fillStyle=C.ok;g.textAlign="left";g.textBaseline="top";
+    for(const tc of S.cals){if(tc<t0||tc>t1)continue;const x=X(tc);g.beginPath();g.moveTo(x,T);g.lineTo(x,B);g.stroke();g.fillText("zeroed",x+4,T+2)}
+    g.setLineDash([])}
+  g.restore();
+  const xc=X(t[cursor]);g.strokeStyle=C.ink;g.lineWidth=1;g.beginPath();g.moveTo(xc,T);g.lineTo(xc,B);g.stroke();
+  g.fillStyle=C.ink;g.beginPath();g.arc(xc,Y(arr.a[cursor]),3.5,0,7);g.fill();
+  cv._map={t0,t1,L,PW};
+}
+
+function drawTimeline(cv=$("ctl")){
+  const {g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||S.n<2)return;
+  const t=S.t.a,tEnd=Math.max(t[S.n-1],1),L=40,R=w-8,PW=R-L,T=6,B=h-6;
+  const X=tt=>L+tt/tEnd*PW,Y=r=>B-(Math.min(50,Math.max(10,r))-10)/40*(B-T);
+  g.font="11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;g.textAlign="right";g.textBaseline="middle";
+  for(const r of [20,30,40]){const y=Y(r);g.strokeStyle=C.grid;g.beginPath();g.moveTo(L,y);g.lineTo(R,y);g.stroke();g.fillText(r,L-5,y)}
+  const [a,b]=viewRange();g.fillStyle=C.water;g.globalAlpha=0.45;g.fillRect(X(a),T,Math.max(2,X(b)-X(a)),B-T);g.globalAlpha=1;
+  g.fillStyle=C.accent;
+  for(const s of S.strokes){if(!s.valid)continue;g.beginPath();g.arc(X(t[s.c]),Y(s.rate),1.8,0,7);g.fill()}
+  const xc=X(t[cursor]);g.strokeStyle=C.ink;g.beginPath();g.moveTo(xc,T);g.lineTo(xc,B);g.stroke();
+  cv._map={t0:0,t1:tEnd,L,PW};
+}
+
+function drawBladePath(){
+  const cv=$("cbp"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||S.n<2)return;
+  const k=S.strokeAt(cursor);
+  const ids=[];for(let j=k;j>=0&&ids.length<3;j--)if(S.strokes[j].valid)ids.unshift(j);
+  const det=S.abs.a,vert=S.vert.a;
+  let x0=-60,x1=40,y0=-10,y1=8;
+  const segs=ids.map(j=>{const s=S.strokes[j];return [s.c,Math.min(s.n,j===k?Math.max(cursor,s.c):s.n)]});
+  if(k>=0&&S.strokes[k]&&cursor>S.strokes[k].n)segs.push([S.strokes[k].n,cursor]);
+  for(const [a,b] of segs)for(let i=a;i<=b;i++){x0=Math.min(x0,det[i]);x1=Math.max(x1,det[i]);y0=Math.min(y0,vert[i]);y1=Math.max(y1,vert[i])}
+  const flip=S.catchSign>0; // put the catch on the left
+  const L=34,R=w-10,T=8,B=h-22;
+  const X=v=>{const f=(v-x0)/(x1-x0);return L+(flip?1-f:f)*(R-L)},Y=v=>B-(v-y0)/(y1-y0)*(B-T);
+  g.font="11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;
+  g.textAlign="right";g.textBaseline="middle";
+  const ys=niceStep(y1-y0,4);for(let v=Math.ceil(y0/ys)*ys;v<=y1;v+=ys){g.strokeStyle=Math.abs(v)<1e-9?C.line:C.grid;g.beginPath();g.moveTo(L,Y(v));g.lineTo(R,Y(v));g.stroke();g.fillText(v.toFixed(0)+"°",L-4,Y(v))}
+  g.textAlign="center";g.textBaseline="top";
+  const xs=niceStep(x1-x0,5);for(let v=Math.ceil(x0/xs)*xs;v<=x1;v+=xs){g.strokeStyle=C.grid;g.beginPath();g.moveTo(X(v),T);g.lineTo(X(v),B);g.stroke();g.fillText(v.toFixed(0)+"°",X(v),B+5)}
+  g.textAlign="left";g.fillText("catch",L+2,T);g.textAlign="right";g.fillText("finish",R-2,T);
+  segs.forEach(([a,b],n)=>{g.globalAlpha=0.3+0.7*(n+1)/segs.length;g.strokeStyle=n===segs.length-1?C.accent:C.hull;g.lineWidth=n===segs.length-1?2:1.4;
+    g.beginPath();for(let i=a;i<=b;i++){const x=X(det[i]),y=Y(vert[i]);i===a?g.moveTo(x,y):g.lineTo(x,y)}g.stroke()});
+  g.globalAlpha=1;g.fillStyle=C.blade;g.beginPath();g.arc(X(det[cursor]),Y(vert[cursor]),4,0,7);g.fill();
+}
+
+// ---------------------------------------------------------------- 3D view
+const cam={yaw:-125,pitch:28,dist:5.2,target:[0.55,0,0]};
+const VIEWS={persp:{yaw:-125,pitch:28,dist:5.2},top:{yaw:-90,pitch:89,dist:6},stern:{yaw:-90,pitch:12,dist:5.5}};
+function draw3D(){
+  const cv=$("c3d"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||!S.n)return;
+  const cy=cam.yaw*D2R,cp=cam.pitch*D2R,T=cam.target;
+  const eye=[T[0]+cam.dist*Math.cos(cp)*Math.cos(cy),T[1]+cam.dist*Math.cos(cp)*Math.sin(cy),T[2]+cam.dist*Math.sin(cp)];
+  const f=norm([T[0]-eye[0],T[1]-eye[1],T[2]-eye[2]]);let r=cross(f,[0,0,1]);
+  if(Math.hypot(...r)<1e-3)r=[Math.sin(cy),-Math.cos(cy),0];r=norm(r);const up=cross(r,f);
+  const F=Math.min(w,h)*1.25,cx=w/2,cyy=h/2+h*0.05;
+  const P=p=>{const d=[p[0]-eye[0],p[1]-eye[1],p[2]-eye[2]],z=dot(d,f);if(z<0.05)return null;return [cx+F*dot(d,r)/z,cyy-F*dot(d,up)/z]};
+  const line=(pts,color,wid,alpha=1)=>{g.strokeStyle=color;g.lineWidth=wid;g.globalAlpha=alpha;g.beginPath();let m=false;
+    for(const p of pts){const q=P(p);if(!q){m=false;continue}m?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);m=true}g.stroke();g.globalAlpha=1};
+  const wz=OAR.water;
+  // water grid
+  for(let x=-1.5;x<=3.01;x+=0.5)line([[x,-3.5,wz],[x,3.5,wz]],C.water,1);
+  for(let y=-3.5;y<=3.51;y+=0.5)line([[-1.5,y,wz],[3,y,wz]],C.water,1);
+  // hull (centre line at x=-0.85) and rigger
+  const bow=S.catchSign, hx=-0.85, hull=[];
+  for(let k=0;k<=40;k++){const y=-3.5+k*7/40,wd=0.24*Math.sqrt(Math.max(0,1-Math.pow(y/4.2,2)));hull.push([hx+wd,y,0.02])}
+  for(let k=40;k>=0;k--){const y=-3.5+k*7/40,wd=0.24*Math.sqrt(Math.max(0,1-Math.pow(y/4.2,2)));hull.push([hx-wd,y,0.02])}
+  g.fillStyle=C.hull;g.globalAlpha=0.35;g.beginPath();hull.forEach((p,k)=>{const q=P(p);if(q)k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])});g.fill();g.globalAlpha=1;
+  line(hull,C.hull,1.2);
+  line([[hx+0.2,-0.25,0.05],[0,0,0.12],[hx+0.2,0.25,0.05]],C.hull,2);
+  // bow label
+  const bl=P([hx,bow*3.7,0.05]);if(bl){g.fillStyle=C.muted;g.font="600 12px "+getComputedStyle(document.body).fontFamily;g.textAlign="center";g.fillText("BOW",bl[0],bl[1])}
+  // blade trace (last 1.5 s)
+  const t=S.t.a,i=cursor,t0=t[i]-1.5;let j=i;while(j>0&&t[j-1]>=t0)j--;
+  const step=Math.max(1,Math.floor((i-j)/120));
+  let prev=null;
+  for(let k=j;k<=i;k+=step){const v=oarVectors(S.abs.a[k]*D2R,S.vert.a[k]*D2R,S.feather.a[k]*D2R),c=OAR.outboard-OAR.bladeLen/2;
+    const p=[v.s[0]*c,v.s[1]*c,v.s[2]*c];if(prev)line([prev,p],C.blade,2,(k-j)/(i-j+1));prev=p}
+  // oar
+  const v=oarVectors(S.abs.a[i]*D2R,S.vert.a[i]*D2R,S.feather.a[i]*D2R),s=v.s,u=v.u;
+  const at=d=>[s[0]*d,s[1]*d,s[2]*d];
+  line([at(-OAR.inboard),at(OAR.outboard-OAR.bladeLen)],C.ink,3.2);
+  line([at(-OAR.inboard),at(-OAR.inboard+0.3)],C.accent,6);
+  const b0=OAR.outboard-OAR.bladeLen,b1=OAR.outboard,hw=OAR.bladeW/2;
+  const quad=[[b0,-hw*0.55],[b1,-hw],[b1,hw],[b0,hw*0.55]].map(([d,e])=>[s[0]*d+u[0]*e,s[1]*d+u[1]*e,s[2]*d+u[2]*e]);
+  const qq=quad.map(P);
+  if(qq.every(Boolean)){g.fillStyle=C.blade;g.beginPath();qq.forEach((q,k)=>k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();g.strokeStyle=C.ink;g.lineWidth=1;g.stroke()}
+  const pin=P([0,0,0]);if(pin){g.fillStyle=C.ink;g.beginPath();g.arc(pin[0],pin[1],4,0,7);g.fill()}
+  $("hSweep").textContent=fmtA(S.abs.a[i]);$("hVert").textContent=fmtA(S.vert.a[i]);$("hFeather").textContent=Math.abs(S.feather.a[i]).toFixed(0)+"°";
+}
+
+// ---------------------------------------------------------------- 3D boat view
+// World: +x toward the bow, +y to port, z up, origin at the rigger pins on the waterline.
+// The hull moves relative to a boat running at the mean speed (the dashed ghost): fore-aft by the
+// in-stroke position wobble (double integral of the surge acceleration), pitched and rolled by the
+// measured attitude. All three are scaled by the exaggeration setting. The sculler and oars are a
+// schematic driven by the detected catch and finish times.
+const camB={yaw:-118,pitch:20,dist:9.2,target:[-0.2,0,0.3]};
+const BVIEWS={persp:{yaw:-118,pitch:20,dist:9.2},side:{yaw:-90,pitch:5,dist:8.8},stern:{yaw:180,pitch:14,dist:6},top:{yaw:-90,pitch:89,dist:9.5}};
+const HULL={len:7.8,beam:0.2,sheer:0.14,keel:-0.1,bowX:3.7};
+
+function strokePhase(i){ // {drive:0..1} during the drive, {rec:0..1} during the recovery, or null
+  if(!S.strokes.length)return null;
+  const t=S.t.a,k=S.strokeAt(i);if(k<0)return null;
+  const s=S.strokes[k];
+  if(i<s.n&&s.valid){
+    if(i<s.f)return {drive:(t[i]-t[s.c])/Math.max(1e-3,t[s.f]-t[s.c])};
+    return {rec:(t[i]-t[s.f])/Math.max(1e-3,t[s.n]-t[s.f])};
+  }
+  // after the last complete stroke (live): repeat its timing from the latest catch
+  const last=S.catches.length?S.catches[S.catches.length-1]:-1;if(last<0||!s.valid)return null;
+  const T=t[s.n]-t[s.c],dr=t[s.f]-t[s.c],e=t[i]-t[last];
+  if(e>T*1.3)return null;
+  return e<dr?{drive:e/dr}:{rec:Math.min(1,(e-dr)/Math.max(1e-3,T-dr))};
+}
+// Pose of the 3D sculler: examples replay the exact simulated technique; recorded sessions use a
+// standard legs-trunk-arms sequence timed to the detected catch and finish.
+function scullerState(i){
+  let tech=TECH.generic,ph=null;
+  if(src&&src.sp&&src.n===S.n){tech=TECH[src.tech]||tech;const c=src.sp[i];ph=c<1?{drive:c}:{rec:Math.min(1,c-1)}}
+  else ph=strokePhase(i);
+  const pose=ph?techPose(tech,ph):{legs:0.45,trunk:4,arms:0,lmin:tech.body.lmin};
+  // blade: in the water from entry to exit of the force curve, feathered through the recovery
+  let depth=0.03,feather=1;
+  if(ph&&ph.drive!==undefined){const f=tech.force,u=ph.drive;
+    depth=-0.12*smooth5((u-(f.in-0.03))/0.05)*(1-smooth5((u-f.out)/0.04))+0.1*(1-smooth5((u-(f.in-0.03))/0.05));feather=0}
+  else if(ph){const q=ph.rec;depth=0.16*Math.sin(Math.PI*Math.min(1,q/0.97));feather=smooth5((q-0.04)/0.12)*(1-smooth5((q-0.78)/0.16))}
+  return {tech,ph,pose,J:bodyJoints(pose),depth,feather};
+}
+function drawBoat3D(){
+  const cv=$("c3dB"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
+  if(!S||!S.n)return;
+  const i=cursor,E=+$("boatExag").value||1,t=S.t.a;
+  // pose: in a completed stroke use the per-stroke integration, otherwise the running one
+  const k=S.strokeAt(i),inStroke=k>=0&&i<S.strokes[k].n;
+  const dx=(inStroke?S.disp.a[i]:S.dhp.a[i])*E,pitch=S.pitch.a[i]*E*D2R,roll=S.set.a[i]*E*D2R;
+  const cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);
+  const B=p=>{ // boat frame -> world
+    const y1=p[1]*cr-p[2]*sr,z1=p[1]*sr+p[2]*cr;
+    return [p[0]*cp-z1*sp+dx,y1,p[0]*sp+z1*cp]};
+  // camera
+  const cy=camB.yaw*D2R,cpp=camB.pitch*D2R,T=camB.target;
+  const eye=[T[0]+camB.dist*Math.cos(cpp)*Math.cos(cy),T[1]+camB.dist*Math.cos(cpp)*Math.sin(cy),T[2]+camB.dist*Math.sin(cpp)];
+  const f=norm([T[0]-eye[0],T[1]-eye[1],T[2]-eye[2]]);let r=cross(f,[0,0,1]);
+  if(Math.hypot(...r)<1e-3)r=[Math.sin(cy),-Math.cos(cy),0];r=norm(r);const up=cross(r,f);
+  const F=Math.min(w,h)*1.35,cx=w/2,cyy=h*0.42;
+  const P=p=>{const d=[p[0]-eye[0],p[1]-eye[1],p[2]-eye[2]],z=dot(d,f);if(z<0.05)return null;return [cx+F*dot(d,r)/z,cyy-F*dot(d,up)/z]};
+  const line=(pts,color,wid,alpha=1,dash)=>{g.strokeStyle=color;g.lineWidth=wid;g.globalAlpha=alpha;if(dash)g.setLineDash(dash);g.beginPath();let m=false;
+    for(const p of pts){const q=P(p);if(!q){m=false;continue}m?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);m=true}g.stroke();g.globalAlpha=1;if(dash)g.setLineDash([])};
+  const poly=(pts,color,alpha)=>{const qs=pts.map(P);if(!qs.every(Boolean))return;g.fillStyle=color;g.globalAlpha=alpha;g.beginPath();qs.forEach((q,n)=>n?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();g.globalAlpha=1};
+  // water
+  for(let x=-6;x<=6.01;x+=1)line([[x,-3,0],[x,3,0]],C.water,1);
+  for(let y=-3;y<=3.01;y+=1)line([[-6,y,0],[6,y,0]],C.water,1);
+  // hull shape (bow at +x, stern at -x)
+  const half=x=>{const u=(x-(HULL.bowX-HULL.len/2))/(HULL.len/2);return HULL.beam*Math.pow(Math.max(0,1-u*u),0.65)};
+  const xs=[];for(let q=0;q<=48;q++)xs.push(HULL.bowX-HULL.len+q*HULL.len/48);
+  const deckP=xs.map(x=>[x,half(x),HULL.sheer]),deckS=xs.map(x=>[x,-half(x),HULL.sheer]);
+  const keel=xs.map(x=>{const u=(x-(HULL.bowX-HULL.len/2))/(HULL.len/2);return [x,0,HULL.keel*Math.max(0,1-Math.pow(Math.abs(u),3))]});
+  // ghost: the mean-speed boat
+  line([...deckP,...deckS.slice().reverse(),deckP[0]],C.muted,1,0.8,[5,4]);
+  // hull surfaces: sides then deck
+  const W=xs.map(x=>[x,0,0]);
+  for(const side of [deckP,deckS]){
+    for(let q=0;q<xs.length-1;q++)poly([B(side[q]),B(side[q+1]),B(keel[q+1]),B(keel[q])],C.hull,0.5);
+  }
+  poly([...deckP.map(B),...deckS.slice().reverse().map(B)],C.panel,0.95);
+  line([...deckP.map(B),...deckS.slice().reverse().map(B),B(deckP[0])],C.ink,1.2);
+  line(keel.map(B),C.hull,1);
+  // cockpit and bow ball
+  const ck=[[-0.55,0.13,HULL.sheer],[1.35,0.13,HULL.sheer],[1.35,-0.13,HULL.sheer],[-0.55,-0.13,HULL.sheer]];
+  poly(ck.map(B),C.grid,1);line([...ck.map(B),B(ck[0])],C.hull,1);
+  const bb=P(B([HULL.bowX,0,HULL.sheer+0.03]));if(bb){g.fillStyle=C.ink;g.beginPath();g.arc(bb[0],bb[1],3,0,7);g.fill()}
+  // riggers and pins
+  const pinZ=0.3,pinY=0.8;
+  for(const sg of [1,-1]){
+    line([B([-0.35,sg*0.13,HULL.sheer]),B([0,sg*pinY,pinZ]),B([0.4,sg*0.13,HULL.sheer])],C.hull,2);
+    line([B([0,sg*0.13,HULL.sheer]),B([0,sg*pinY,pinZ])],C.hull,1.2);
+  }
+  // sculler + oars: the handle position comes from the body, the oar angle from the handle
+  const st=scullerState(i),J=st.J;
+  const ps=sweepFromHand(J.hand[0]),IN=RIG.IN,OUT=RIG.OUT,BL=RIG.BLADE,BW=0.22;
+  let handles=[];
+  for(const sg of [1,-1]){
+    const pin=[0,sg*pinY,pinZ];
+    const drop=Math.asin(Math.max(-0.6,Math.min(0.6,(st.depth-pinZ)/OUT)));
+    const dir=[Math.sin(ps)*Math.cos(drop),sg*Math.cos(ps)*Math.cos(drop),Math.sin(drop)];
+    const at=d=>[pin[0]+dir[0]*d,pin[1]+dir[1]*d,pin[2]+dir[2]*d];
+    handles.push(at(-IN));
+    line([B(at(-IN)),B(at(OUT-BL))],C.ink,2.4);
+    // blade: squared (vertical) on the drive, flat on the recovery
+    const hz=norm(cross(dir,[0,0,1])),vz=cross(hz,dir),fe=st.feather*Math.PI/2;
+    const bu=[vz[0]*Math.cos(fe)+hz[0]*Math.sin(fe),vz[1]*Math.cos(fe)+hz[1]*Math.sin(fe),vz[2]*Math.cos(fe)+hz[2]*Math.sin(fe)];
+    const bq=[[OUT-BL,-0.55],[OUT,-1],[OUT,1],[OUT-BL,0.55]].map(([d,e])=>{const p=at(d);return B([p[0]+bu[0]*e*BW/2,p[1]+bu[1]*e*BW/2,p[2]+bu[2]*e*BW/2])});
+    poly(bq,C.blade,1);line([...bq,bq[0]],C.ink,0.8);
+    if(st.depth<-0.04){const c=at(OUT-BL/2),q=P([c[0]+dx,c[1],0]);if(q){g.strokeStyle=C.accent;g.globalAlpha=0.5;g.lineWidth=1;g.beginPath();g.ellipse(q[0],q[1],16,5,0,0,7);g.stroke();g.globalAlpha=1}}
+    const pq=P(B(pin));if(pq){g.fillStyle=C.ink;g.beginPath();g.arc(pq[0],pq[1],2.5,0,7);g.fill()}
+  }
+  // the sculler (faces the stern) from the same joint positions the model used
+  const V=(p,y=0)=>[p[0],y,p[1]];
+  line([[-0.05,0,HULL.sheer],[0.7,0,HULL.sheer]].map(B),C.muted,1.6);   // slide
+  const hx=J.hip[0],sz=BODY.hipZ-0.04;
+  poly([[hx-0.12,-0.11,sz],[hx+0.1,-0.11,sz],[hx+0.1,0.11,sz],[hx-0.12,0.11,sz]].map(B),C.hull,1);
+  for(const sg of [1,-1])line([V(J.heel,sg*0.09),V(J.knee,sg*0.1),V(J.hip,sg*0.09)].map(B),C.ink,3);
+  line([V(J.hip),V(J.sh)].map(B),C.ink,4.5);
+  for(let n=0;n<2;n++){const sg=n?-1:1;line([B(V(J.sh,sg*0.18)),B(V(J.elbow,sg*0.24)),B(handles[n])],C.ink,2.2)}
+  const head=P(B(V(J.head)));if(head){g.fillStyle=C.ink;g.beginPath();g.arc(head[0],head[1],Math.max(4,F*0.1/camB.dist),0,7);g.fill()}
+  // acceleration arrow above the boat
+  const a=S.slp.a[i],ax0=B([0.5,0,1.35]),ax1=[ax0[0]+a*0.35,ax0[1],ax0[2]];
+  const q0=P(ax0),q1=P(ax1);
+  if(q0&&q1&&Math.abs(a)>0.05){const col=a>=0?C.accent:C.blade;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=3;g.beginPath();g.moveTo(q0[0],q0[1]);g.lineTo(q1[0],q1[1]);g.stroke();
+    const an=Math.atan2(q1[1]-q0[1],q1[0]-q0[0]);g.beginPath();g.moveTo(q1[0]+Math.cos(an)*6,q1[1]+Math.sin(an)*6);g.lineTo(q1[0]+Math.cos(an+2.5)*9,q1[1]+Math.sin(an+2.5)*9);g.lineTo(q1[0]+Math.cos(an-2.5)*9,q1[1]+Math.sin(an-2.5)*9);g.fill()}
+  // labels
+  g.font="600 11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;g.textAlign="center";
+  const lb=P([HULL.bowX+0.5,0,0.2]),ls=P([HULL.bowX-HULL.len-0.4,0,0.2]);
+  if(lb)g.fillText("BOW",lb[0],lb[1]);if(ls)g.fillText("STERN",ls[0],ls[1]);
+  const ph2=st.ph?(st.ph.drive!==undefined?"drive":"recovery"):"";
+  $("hbAcc").innerHTML=(a>0?"+":"")+a.toFixed(1)+"<small style=\"font:500 11px var(--body);color:var(--muted)\"> m/s²"+(ph2?" · "+ph2:"")+"</small>";
+  $("hbDisp").textContent=((dx/E)*100>0?"+":"")+((dx/E)*100).toFixed(1)+" cm";
+  $("hbPitch").textContent=(S.pitch.a[i]>0?"+":"")+S.pitch.a[i].toFixed(1)+"°";
+  $("hbRoll").textContent=(S.set.a[i]>0?"+":"")+S.set.a[i].toFixed(1)+"°";
+}
+
+// ---------------------------------------------------------------- stats
+function updateStats(){
+  if(!S)return;
+  const V=S.strokes.filter(s=>s.valid);
+  const avg=f=>V.length?V.reduce((a,s)=>a+f(s),0)/V.length:NaN;
+  const put=(id,v,u,dec=0)=>{$(id).innerHTML=isFinite(v)?(u==="°"?fmtA(v):v.toFixed(dec))+(u&&u!=="°"?"<small>"+u+"</small>":""):"–"};
+  put("aRate",avg(s=>s.rate),"spm",1);put("aArc",avg(s=>s.arc),"",0);$("aArc").innerHTML+=isFinite(avg(s=>s.arc))?"<small>°</small>":"";
+  put("aCatch",avg(s=>s.catchA),"°");put("aFin",avg(s=>s.finA),"°");put("aRatio",avg(s=>s.ratio),"",2);
+  const k=S.strokeAt(cursor);let s=null;for(let j=k;j>=0;j--)if(S.strokes[j].valid){s=S.strokes[j];break}
+  if(s&&S.t.a[cursor]-S.t.a[s.n]<5){put("sRate",s.rate,"spm",1);put("sArc",s.arc,"",0);$("sArc").innerHTML+="<small>°</small>";put("sCatch",s.catchA,"°");put("sFin",s.finA,"°");put("sRatio",s.ratio,"",2)}
+  else for(const id of ["sRate","sArc","sCatch","sFin","sRatio"])$(id).textContent="–";
+  $("strokeCount").textContent=V.length+" strokes detected · "+(S.zeroed?"sweep zeroed by tap calibration":"not zeroed: sweep is relative to the average oar position")+(S.biasSet?"":" · gyro bias not yet measured (hold the oar still)");
+}
+
+// ---------------------------------------------------------------- loop
+let lastFrame=performance.now(),lastStats=0;
+function frame(now){
+  const dt=(now-lastFrame)/1000;lastFrame=now;
+  if(playing&&S&&S.n){const tn=S.t.a[cursor]+dt*(+$("speed").value);
+    if(tn>=S.t.a[S.n-1]){cursor=S.n-1;playing=false;$("playBtn").textContent="Play"}else cursor=S.idxAt(tn);dirty=true}
+  if(dirty&&S){
+    readColors();
+    if(S instanceof BoatSession){
+      drawBoat3D();drawProfile($("cProf"),"slp","m/s²");drawProfile($("cProfV"),"vel","m/s");
+      drawPlot($("cSurge"),S.slp,C.accent,{markers:true,drives:true,unit:"m/s²",minPad:0.2});
+      drawPlot($("cVel"),S.vel,C.blade,{drives:true,unit:"m/s",minPad:0.02});
+      drawPlot($("cSet"),S.set,C.ink,{unit:"°",minPad:0.5});
+      drawTimeline($("ctlB"));
+      if(now-lastStats>150||!playing){updateBoatStats();lastStats=now}
+    }else{
+      draw3D();drawPlot($("cSweep"),S.abs,C.accent,{markers:true,drives:true,cals:true});
+      drawPlot($("cVert"),S.vert,C.blade,{drives:true});drawPlot($("cFeather"),S.feather,C.ink,{range:[0,90]});
+      drawTimeline();drawBladePath();
+      if(now-lastStats>150||!playing){updateStats();lastStats=now}
+    }
+    const tEnd=S.n?S.t.a[S.n-1]:0;$("timeTxt").textContent=fmtT(S.n?S.t.a[cursor]:0)+" / "+fmtT(tEnd);
+    $("scrub").value=tEnd?Math.round(S.t.a[cursor]/tEnd*1000):0;
+    dirty=false;
+  }
+  soundTick();
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- UI wiring
+$("fileIn").addEventListener("change",e=>{if(e.target.files[0])openFile(e.target.files[0]);e.target.value=""});
+let exKey="oar";
+function loadExample(k){
+  if(!k)return;exKey=k;disconnect();
+  if(k==="oar")loadColumns(makeDemo(),"Oar · single sculler","demo");
+  else{loadColumns(makeBoatDemo(k),BOAT_EXAMPLES[k].name,"demo");refForExample(k)}
+  $("exSel").value=k;
+}
+$("exSel").onchange=e=>loadExample(e.target.value);
+$("refSel").onchange=e=>refShow(e.target.value);
+refInit();
+$("sndBtn").onclick=soundToggle;
+for(const id of Object.keys(SND_DEF))$(id).addEventListener("input",sndEdited);
+$("sndResetBtn").onclick=()=>{for(const [k,v] of Object.entries(SND_DEF))$(k).value=v;sndEdited()};
+$("sndTestBtn").onclick=()=>sendCmd("PT","PT\n");
+const toggleDevSnd=()=>{if(devSnd.known)sndSend(devSnd.on?0:1);else sendCmd("S","s")};
+$("devSndBtn").onclick=toggleDevSnd;
+sndLabels();sndDevUi();
+$("modeOarBtn").onclick=()=>setDevMode("OAR");$("modeBoatBtn").onclick=()=>setDevMode("BOAT");$("spkBtn").onclick=toggleDevSnd;
+for(const id of ["viewMode","boatAxis"])$(id).onchange=()=>{
+  if(src){const tc=S&&S.n?S.t.a[cursor]:0;buildFromColumns(src);cursor=S.idxAt(tc)}
+  else if(mode==="live"&&liveRaw)rebuildLive();
+  applyLayout()};
+$("bleBtn").onclick=connectBLE;$("serBtn").onclick=connectSerial;
+$("discBtn").onclick=disconnect;$("logBtn").onclick=toggleLog;
+$("playBtn").onclick=()=>{if(!S||mode==="live"&&conn)return;if(!playing&&cursor>=S.n-1)cursor=0;playing=!playing;$("playBtn").textContent=playing?"Pause":"Play";dirty=true};
+$("scrub").oninput=e=>{if(!S||!S.n)return;follow=false;cursor=S.idxAt(e.target.value/1000*S.t.a[S.n-1]);dirty=true};
+for(const id of ["speed","win"])$(id).onchange=()=>dirty=true;
+for(const id of ["mountMode","mountSide","axShaft","axUp","driftWin","hyst"])$(id).onchange=()=>{
+  if(id==="axShaft"||id==="axUp")$("mountMode").value="manual";
+  if(src){const tc=S&&S.n?S.t.a[cursor]:0;buildFromColumns(src);cursor=S.idxAt(tc)}
+  else if(mode==="live"&&liveRaw){
+    if($("mountMode").value==="auto"){liveDetected=applyMounting(liveCols())}else applyMounting(null);
+    rebuildLive()}
+  dirty=true};
+// stroke-profile charts: click or drag to move through the stroke, arrow keys step 1 %
+for(const id of ["cProf","cProfV"]){
+  const cv=$(id);let down=false;
+  cv.tabIndex=0;cv.style.cursor="ew-resize";cv.style.touchAction="none";
+  const toFrac=fr=>{const m=cv._pmap;if(!m||!S)return;const t=S.t.a,f=Math.max(-m.pre,Math.min(0.999,fr));   // before 0: end of the previous stroke
+    follow=false;playing=false;$("playBtn").textContent="Play";cursor=S.idxAt(t[m.c]+f*(t[m.n]-t[m.c]));dirty=true};
+  const seek=e=>{const m=cv._pmap;if(!m)return;const r=cv.getBoundingClientRect();toFrac((e.clientX-r.left-m.L)/(m.Rr-m.L)*(1+m.pre)-m.pre)};
+  // hold the stroke under the pointer for the whole drag, so moving into the lead-in (the end of
+  // the previous stroke) doesn't hand the chart to that stroke and keep sliding backwards
+  const release=()=>{if(!down)return;down=false;profPin=null;dirty=true};
+  cv.addEventListener("pointerdown",e=>{const m=cv._pmap;if(!m)return;down=true;profPin=m.idx>=0?m.idx:null;cv.setPointerCapture(e.pointerId);seek(e)});
+  cv.addEventListener("pointermove",e=>{if(down)seek(e)});
+  cv.addEventListener("pointerup",release);cv.addEventListener("pointercancel",release);cv.addEventListener("lostpointercapture",release);
+  cv.addEventListener("keydown",e=>{const m=cv._pmap;if(!m||!S||(e.key!=="ArrowLeft"&&e.key!=="ArrowRight"))return;e.preventDefault();
+    const t=S.t.a,cur=(t[cursor]-t[m.c])/(t[m.n]-t[m.c]);toFrac(cur+(e.key==="ArrowRight"?0.01:-0.01))});
+}
+for(const id of ["ctl","cSweep","cVert","cFeather","ctlB","cSurge","cVel","cSet"]){
+  const cv=$(id);let down=false;
+  const seek=e=>{const m=cv._map;if(!m||!S)return;const r=cv.getBoundingClientRect();
+    const tt=m.t0+(e.clientX-r.left-m.L)/m.PW*(m.t1-m.t0);follow=conn&&S.n&&tt>=S.t.a[S.n-1];cursor=S.idxAt(tt);dirty=true};
+  cv.addEventListener("pointerdown",e=>{down=true;cv.setPointerCapture(e.pointerId);seek(e)});
+  cv.addEventListener("pointermove",e=>{if(down)seek(e)});
+  cv.addEventListener("pointerup",()=>down=false);
+}
+{ const cv=$("c3d");let drag=null;
+  cv.addEventListener("pointerdown",e=>{drag=[e.clientX,e.clientY,cam.yaw,cam.pitch];cv.setPointerCapture(e.pointerId);cv.style.cursor="grabbing"});
+  cv.addEventListener("pointermove",e=>{if(!drag)return;cam.yaw=drag[2]-(e.clientX-drag[0])*0.4;cam.pitch=Math.max(2,Math.min(89,drag[3]+(e.clientY-drag[1])*0.3));dirty=true});
+  cv.addEventListener("pointerup",()=>{drag=null;cv.style.cursor="grab"});
+  cv.addEventListener("wheel",e=>{e.preventDefault();cam.dist=Math.max(2,Math.min(12,cam.dist*Math.exp(e.deltaY*0.001)));dirty=true},{passive:false});
+  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{Object.assign(cam,VIEWS[b.dataset.view]);dirty=true});
+}
+{ const cv=$("c3dB");let drag=null;
+  cv.addEventListener("pointerdown",e=>{drag=[e.clientX,e.clientY,camB.yaw,camB.pitch];cv.setPointerCapture(e.pointerId);cv.style.cursor="grabbing"});
+  cv.addEventListener("pointermove",e=>{if(!drag)return;camB.yaw=drag[2]-(e.clientX-drag[0])*0.4;camB.pitch=Math.max(2,Math.min(89,drag[3]+(e.clientY-drag[1])*0.3));dirty=true});
+  cv.addEventListener("pointerup",()=>{drag=null;cv.style.cursor="grab"});
+  cv.addEventListener("wheel",e=>{e.preventDefault();camB.dist=Math.max(4,Math.min(20,camB.dist*Math.exp(e.deltaY*0.001)));dirty=true},{passive:false});
+  document.querySelectorAll("[data-bview]").forEach(b=>b.onclick=()=>{Object.assign(camB,BVIEWS[b.dataset.bview]);dirty=true});
+  $("boatExag").onchange=()=>dirty=true;
+}
+let dragN=0;
+addEventListener("dragenter",e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes("Files")){dragN++;$("drop").hidden=false}});
+addEventListener("dragleave",()=>{if(--dragN<=0){dragN=0;$("drop").hidden=true}});
+addEventListener("dragover",e=>e.preventDefault());
+addEventListener("drop",e=>{e.preventDefault();dragN=0;$("drop").hidden=true;const f=e.dataTransfer.files[0];if(f)openFile(f)});
+addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;if(e.code==="Space"){e.preventDefault();$("playBtn").click()}});
+addEventListener("resize",()=>dirty=true);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>dirty=true);
+new MutationObserver(()=>dirty=true).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+if(!navigator.bluetooth)$("bleBtn").title="Needs Chrome or Edge";
+if(!navigator.serial)$("serBtn").title="Needs Chrome or Edge on a computer";
+
+loadExample("oar");
+requestAnimationFrame(frame);
+</script>
+
+</body></html>
