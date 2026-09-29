@@ -1619,10 +1619,12 @@ function draw3D(){
 //  - relative: the water stands still and so does a boat running at constant average speed (the
 //    dashed outline); the hull moves fore and aft of it by the in-stroke position wobble (double
 //    integral of the surge acceleration).
-//  - absolute: the boat stays in the middle and the water moves past at the boat's speed. For the
-//    examples that is the model's true speed; for recorded sessions the average speed is assumed
-//    (no GPS) and the in-stroke changes are measured.
-// Pitch, roll and the in-stroke part of the movement are scaled by the exaggeration setting.
+//  - absolute: the camera travels at the average speed, so the water moves past at that steady
+//    speed, and the hull surges ahead and drops back in the frame by the same in-stroke wobble.
+//    For the examples the average is the model's (smoothed) speed; for recorded sessions it is
+//    assumed (no GPS) and only the in-stroke changes are measured.
+// Pitch, roll and the in-stroke movement are scaled by the exaggeration setting; the speed of the
+// water never is, so the boat always looks as fast as it is.
 // The sculler and oars come from the rower model (examples) or a standard sequence timed to the
 // detected catch and finish (recorded sessions).
 let boatAbs=false;
@@ -1631,10 +1633,12 @@ function boatMotionUi(){
   const ex=!!(src&&src.speed);
   $("bAvgLbl").hidden=!boatAbs||ex;
   $("hbDispL").textContent=boatAbs?"Speed":"Ahead / behind";
-  $("bNote").textContent=boatAbs
-    ?(ex?"Absolute: the water moves past at the boat's speed in the model; the boat stays in the middle."
-        :"Absolute: the water moves past at the average speed you set (assumed: there is no GPS) plus the measured changes within each stroke.")
-    :"Relative: the dashed outline is a boat at constant average speed. The hull drops behind it on the check and pulls ahead on the drive.";
+  const E=+$("boatExag").value||1;
+  $("bNote").textContent=(boatAbs
+    ?(ex?"Absolute: the view travels with the boat's average speed, so the water streams past steadily; the hull surges ahead and drops back in the frame as its speed changes within the stroke."
+        :"Absolute: the view travels at the average speed you set (assumed: there is no GPS), so the water streams past steadily; the hull surges ahead and drops back in the frame with the measured speed changes.")
+    :"Relative: the dashed outline is a boat at constant average speed. The hull drops behind it on the check and pulls ahead on the drive.")
+    +(E>1?` Movement, pitch and roll are drawn ${E}× larger than real${boatAbs?", so the hull can seem to slide back at the check":""}; the speed shown is real.`:"");
   dirty=true;
 }
 const fmtSplit=v=>{if(!(v>0.3))return "–";const s=500/v,m=Math.floor(s/60);return m+":"+String(Math.round(s-m*60)).padStart(2,"0")};
@@ -1679,11 +1683,12 @@ function drawBoat3D(){
   const ex=src&&src.speed&&src.n===S.n;           // an example: the model's true speed is known
   const wob=ex?src.pos[i]-src.basePos[i]:(inStroke?S.disp.a[i]:S.dhp.a[i]);
   let dx=0,waterX=0,speed=NaN;
-  if(boatAbs){                                      // boat in the middle, water moves past
+  dx=wob*E;                                         // the hull moves around the average-speed position
+  if(boatAbs){                                      // ... and the water streams past at the average speed
     const vAvg=Math.max(0,+$("bAvgSpd").value||4);
-    waterX=(ex?src.basePos[i]:vAvg*t[i])+E*wob;
+    waterX=ex?src.basePos[i]:vAvg*t[i];
     speed=ex?src.speed[i]:vAvg+(inStroke?S.vel.a[i]:S.vhp.a[i]);
-  }else dx=wob*E;                                   // water still, hull moves around the average
+  }
   const pitch=S.pitch.a[i]*E*D2R,roll=S.set.a[i]*E*D2R;
   const cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);
   const B=p=>{ // boat frame -> world
@@ -1775,7 +1780,7 @@ function drawBoat3D(){
     const an=Math.atan2(q1[1]-q0[1],q1[0]-q0[0]);g.beginPath();g.moveTo(q1[0]+Math.cos(an)*6,q1[1]+Math.sin(an)*6);g.lineTo(q1[0]+Math.cos(an+2.5)*9,q1[1]+Math.sin(an+2.5)*9);g.lineTo(q1[0]+Math.cos(an-2.5)*9,q1[1]+Math.sin(an-2.5)*9);g.fill()}
   // labels
   g.font="600 11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;g.textAlign="center";
-  const lb=P([HULL.bowX+0.5,0,0.2]),ls=P([HULL.bowX-HULL.len-0.4,0,0.2]);
+  const lb=P([HULL.bowX+0.5+dx,0,0.2]),ls=P([HULL.bowX-HULL.len-0.4+dx,0,0.2]);
   if(lb)g.fillText("BOW",lb[0],lb[1]);if(ls)g.fillText("STERN",ls[0],ls[1]);
   const ph2=st.ph?(st.ph.drive!==undefined?"drive":"recovery"):"";
   $("hbAcc").innerHTML=(a>0?"+":"")+a.toFixed(1)+"<small style=\"font:500 11px var(--body);color:var(--muted)\"> m/s²"+(ph2?" · "+ph2:"")+"</small>";
@@ -1903,7 +1908,7 @@ for(const id of ["ctl","cSweep","cVert","cFeather","ctlB","cSurge","cVel","cSet"
   cv.addEventListener("pointerup",()=>{drag=null;cv.style.cursor="grab"});
   cv.addEventListener("wheel",e=>{e.preventDefault();camB.dist=Math.max(4,Math.min(20,camB.dist*Math.exp(e.deltaY*0.001)));dirty=true},{passive:false});
   document.querySelectorAll("[data-bview]").forEach(b=>b.onclick=()=>{Object.assign(camB,BVIEWS[b.dataset.bview]);dirty=true});
-  $("boatExag").onchange=()=>dirty=true;
+  $("boatExag").onchange=()=>boatMotionUi();
   $("bmRel").onclick=()=>{boatAbs=false;boatMotionUi()};$("bmAbs").onclick=()=>{boatAbs=true;boatMotionUi()};
   $("bAvgSpd").addEventListener("input",()=>dirty=true);
   boatMotionUi();
