@@ -117,9 +117,15 @@ button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
 .col{display:flex;flex-direction:column;gap:14px;min-width:0}
 .vfoot{position:absolute;left:12px;right:12px;bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:11.5px;color:var(--muted);pointer-events:none}
 .vfoot label{display:flex;align-items:center;gap:6px;pointer-events:auto}
+.vfoot .seg{pointer-events:auto}
+.vfoot .seg button{padding:2px 9px;min-height:26px;font-size:12px}
+.vfoot input[type=number]{width:4.2em;font:500 12px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 5px}
+.hud b.sm{font-size:17px;line-height:1.45}
+.hud b.inwater{color:var(--accent)}
+.hud b.outwater{color:var(--muted)}
 .vfoot select{padding:2px 6px;min-height:26px;font-size:12px}
-.vfoot span{flex:1 1 220px}
-@media (max-width:560px){.vfoot span{display:none}.hud{gap:10px}.hud b{font-size:19px}}
+.bcap{margin:-6px 2px 0;font-size:13px;color:var(--muted);max-width:90ch}
+@media (max-width:560px){.hud{gap:10px}.hud b{font-size:19px}}
 .drop{position:fixed;inset:0;background:color-mix(in srgb,var(--accent) 18%,transparent);border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font:600 28px var(--display);color:var(--ink);z-index:10}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -161,7 +167,8 @@ button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
       <canvas id="c3dB" aria-label="3D view of the boat at the current time"></canvas>
       <div class="hud">
         <div><span>Accel.</span><b id="hbAcc">0.0</b></div>
-        <div><span>Surge</span><b id="hbDisp">0 cm</b></div>
+        <div><span id="hbDispL">Ahead / behind</span><b id="hbDisp">0 cm</b></div>
+        <div><span>Blades</span><b id="hbBlade" class="sm">–</b></div>
         <div><span>Pitch</span><b id="hbPitch">0.0°</b></div>
         <div><span>Roll</span><b id="hbRoll">0.0°</b></div>
       </div>
@@ -169,10 +176,12 @@ button:disabled{opacity:.5;cursor:default;border-color:var(--line)}
         <button data-bview="persp">3/4</button><button data-bview="side">Side</button><button data-bview="stern">Stern</button><button data-bview="top">Top</button>
       </div>
       <div class="vfoot">
+        <div class="seg" role="group" aria-label="Boat movement"><span>Movement</span><button id="bmRel" aria-pressed="true">Relative</button><button id="bmAbs" aria-pressed="false">Absolute</button></div>
+        <label id="bAvgLbl" hidden>Average speed <input type="number" id="bAvgSpd" value="4.0" min="1" max="7" step="0.1" aria-describedby="bNote"> m/s</label>
         <label>Exaggerate <select id="boatExag"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="10">10×</option></select></label>
-        <span id="bNote">Boat movement relative to a boat at constant speed (ghost outline). In the examples the sculler moves exactly as in the model that produced the data; for your sessions it follows a standard legs–trunk–arms sequence timed to your catch and finish.</span>
       </div>
     </div>
+    <p class="bcap" id="bNote"></p>
     <div class="panel profile">
       <h3>Stroke profile · boat acceleration over the stroke (last 10 strokes, mean in bold) · drag to move through the stroke</h3>
       <canvas id="cProf" aria-label="Boat acceleration against percentage of the stroke"></canvas>
@@ -901,6 +910,14 @@ function makeBoatDemo(kind="front"){
   for(const k of ["ax","ay","az","gx","gy","gz"])out[k]=new Float32Array(n);
   const sim=simulateRowing(kind,fs,T,{rates:ex.rates,vari:ex.var});
   out.sp=sim.sp;                                 // stroke phase, so the 3D sculler moves as simulated
+  // true boat speed from the model, for the absolute view: distance covered (pos) and a smooth
+  // "average speed" distance (base, speed averaged over ~3 s) to scale the in-stroke part by
+  out.speed=sim.vel;
+  {const P=new Float64Array(n),Bs=new Float64Array(n),H=fs*1.5|0,C=new Float64Array(n+1);
+   for(let i=0;i<n;i++)C[i+1]=C[i]+sim.vel[i];
+   let acc=0,bacc=0;for(let i=0;i<n;i++){const lo=Math.max(0,i-H),hi=Math.min(n,i+H);
+     acc+=sim.vel[i]/fs;bacc+=(C[hi]-C[lo])/(hi-lo)/fs;P[i]=acc;Bs[i]=bacc}
+   out.pos=P;out.basePos=Bs}
   let cmMean=0;for(let i=0;i<n;i++)cmMean+=sim.cm[i];cmMean/=n;
   const rnd=()=>{let s=0;for(let k=0;k<4;k++)s+=Math.random();return (s-2)*0.87};
   let prev=null,rollW=0,rollOff=0,lastStroke=-1;
@@ -1274,6 +1291,7 @@ function cfgBoat(cols){const v=$("boatAxis").value;
   return {boatAxis:v}}
 function applyLayout(){
   const b=effMode()==="boat";
+  if(typeof boatMotionUi==="function"&&$("bmRel"))boatMotionUi();
   $("refPanel").hidden=!(b&&$("refPanel").dataset.has);
   $("oarMain").hidden=b;$("oarPlots").hidden=b;$("oarSettings").hidden=b;$("mountInfo").hidden=b;
   $("boatMain").hidden=!b;$("boatPlots").hidden=!b;
@@ -1597,10 +1615,29 @@ function draw3D(){
 
 // ---------------------------------------------------------------- 3D boat view
 // World: +x toward the bow, +y to port, z up, origin at the rigger pins on the waterline.
-// The hull moves relative to a boat running at the mean speed (the dashed ghost): fore-aft by the
-// in-stroke position wobble (double integral of the surge acceleration), pitched and rolled by the
-// measured attitude. All three are scaled by the exaggeration setting. The sculler and oars are a
-// schematic driven by the detected catch and finish times.
+// Two ways to show the boat's fore-aft movement:
+//  - relative: the water stands still and so does a boat running at constant average speed (the
+//    dashed outline); the hull moves fore and aft of it by the in-stroke position wobble (double
+//    integral of the surge acceleration).
+//  - absolute: the boat stays in the middle and the water moves past at the boat's speed. For the
+//    examples that is the model's true speed; for recorded sessions the average speed is assumed
+//    (no GPS) and the in-stroke changes are measured.
+// Pitch, roll and the in-stroke part of the movement are scaled by the exaggeration setting.
+// The sculler and oars come from the rower model (examples) or a standard sequence timed to the
+// detected catch and finish (recorded sessions).
+let boatAbs=false;
+function boatMotionUi(){
+  $("bmRel").setAttribute("aria-pressed",String(!boatAbs));$("bmAbs").setAttribute("aria-pressed",String(boatAbs));
+  const ex=!!(src&&src.speed);
+  $("bAvgLbl").hidden=!boatAbs||ex;
+  $("hbDispL").textContent=boatAbs?"Speed":"Ahead / behind";
+  $("bNote").textContent=boatAbs
+    ?(ex?"Absolute: the water moves past at the boat's speed in the model; the boat stays in the middle."
+        :"Absolute: the water moves past at the average speed you set (assumed: there is no GPS) plus the measured changes within each stroke.")
+    :"Relative: the dashed outline is a boat at constant average speed. The hull drops behind it on the check and pulls ahead on the drive.";
+  dirty=true;
+}
+const fmtSplit=v=>{if(!(v>0.3))return "–";const s=500/v,m=Math.floor(s/60);return m+":"+String(Math.round(s-m*60)).padStart(2,"0")};
 const camB={yaw:-118,pitch:20,dist:9.2,target:[-0.2,0,0.3]};
 const BVIEWS={persp:{yaw:-118,pitch:20,dist:9.2},side:{yaw:-90,pitch:5,dist:8.8},stern:{yaw:180,pitch:14,dist:6},top:{yaw:-90,pitch:89,dist:9.5}};
 const HULL={len:7.8,beam:0.2,sheer:0.14,keel:-0.1,bowX:3.7};
@@ -1631,15 +1668,23 @@ function scullerState(i){
   if(ph&&ph.drive!==undefined){const f=tech.force,u=ph.drive;
     depth=-0.12*smooth5((u-(f.in-0.03))/0.05)*(1-smooth5((u-f.out)/0.04))+0.1*(1-smooth5((u-(f.in-0.03))/0.05));feather=0}
   else if(ph){const q=ph.rec;depth=0.16*Math.sin(Math.PI*Math.min(1,q/0.97));feather=smooth5((q-0.04)/0.12)*(1-smooth5((q-0.78)/0.16))}
-  return {tech,ph,pose,J:bodyJoints(pose),depth,feather};
+  return {tech,ph,pose,J:bodyJoints(pose),depth,feather,inWater:!!(ph&&ph.drive!==undefined&&depth<-0.03)};
 }
 function drawBoat3D(){
   const cv=$("c3dB"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
   if(!S||!S.n)return;
   const i=cursor,E=+$("boatExag").value||1,t=S.t.a;
-  // pose: in a completed stroke use the per-stroke integration, otherwise the running one
+  // in-stroke position wobble: per completed stroke, otherwise the running estimate
   const k=S.strokeAt(i),inStroke=k>=0&&i<S.strokes[k].n;
-  const dx=(inStroke?S.disp.a[i]:S.dhp.a[i])*E,pitch=S.pitch.a[i]*E*D2R,roll=S.set.a[i]*E*D2R;
+  const ex=src&&src.speed&&src.n===S.n;           // an example: the model's true speed is known
+  const wob=ex?src.pos[i]-src.basePos[i]:(inStroke?S.disp.a[i]:S.dhp.a[i]);
+  let dx=0,waterX=0,speed=NaN;
+  if(boatAbs){                                      // boat in the middle, water moves past
+    const vAvg=Math.max(0,+$("bAvgSpd").value||4);
+    waterX=(ex?src.basePos[i]:vAvg*t[i])+E*wob;
+    speed=ex?src.speed[i]:vAvg+(inStroke?S.vel.a[i]:S.vhp.a[i]);
+  }else dx=wob*E;                                   // water still, hull moves around the average
+  const pitch=S.pitch.a[i]*E*D2R,roll=S.set.a[i]*E*D2R;
   const cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);
   const B=p=>{ // boat frame -> world
     const y1=p[1]*cr-p[2]*sr,z1=p[1]*sr+p[2]*cr;
@@ -1654,16 +1699,21 @@ function drawBoat3D(){
   const line=(pts,color,wid,alpha=1,dash)=>{g.strokeStyle=color;g.lineWidth=wid;g.globalAlpha=alpha;if(dash)g.setLineDash(dash);g.beginPath();let m=false;
     for(const p of pts){const q=P(p);if(!q){m=false;continue}m?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);m=true}g.stroke();g.globalAlpha=1;if(dash)g.setLineDash([])};
   const poly=(pts,color,alpha)=>{const qs=pts.map(P);if(!qs.every(Boolean))return;g.fillStyle=color;g.globalAlpha=alpha;g.beginPath();qs.forEach((q,n)=>n?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();g.globalAlpha=1};
-  // water
-  for(let x=-6;x<=6.01;x+=1)line([[x,-3,0],[x,3,0]],C.water,1);
-  for(let y=-3;y<=3.01;y+=1)line([[-6,y,0],[6,y,0]],C.water,1);
+  // water: a 1 m grid, moving past the boat in the absolute view, plus lane buoys every 2.5 m
+  const wf=waterX-Math.floor(waterX);
+  for(let x=-7;x<=7.01;x+=1){const xx=x-wf;if(xx<-6.5||xx>6.5)continue;line([[xx,-3,0],[xx,3,0]],C.water,1)}
+  for(let y=-3;y<=3.01;y+=1)line([[-6.5,y,0],[6.5,y,0]],C.water,1);
+  {const bf=waterX/2.5-Math.floor(waterX/2.5);g.fillStyle=C.hull;
+   for(let x=-7.5;x<=7.5;x+=2.5){const xx=x-bf*2.5;if(xx<-6.5||xx>6.5)continue;
+     for(const y of [-3,3]){const q=P([xx,y,0.03]);if(q){g.beginPath();g.arc(q[0],q[1],2.6,0,7);g.fill()}}}}
   // hull shape (bow at +x, stern at -x)
   const half=x=>{const u=(x-(HULL.bowX-HULL.len/2))/(HULL.len/2);return HULL.beam*Math.pow(Math.max(0,1-u*u),0.65)};
   const xs=[];for(let q=0;q<=48;q++)xs.push(HULL.bowX-HULL.len+q*HULL.len/48);
   const deckP=xs.map(x=>[x,half(x),HULL.sheer]),deckS=xs.map(x=>[x,-half(x),HULL.sheer]);
   const keel=xs.map(x=>{const u=(x-(HULL.bowX-HULL.len/2))/(HULL.len/2);return [x,0,HULL.keel*Math.max(0,1-Math.pow(Math.abs(u),3))]});
-  // ghost: the mean-speed boat
-  line([...deckP,...deckS.slice().reverse(),deckP[0]],C.muted,1,0.8,[5,4]);
+  // ghost: a boat at constant average speed (relative view only)
+  if(!boatAbs){line([...deckP,...deckS.slice().reverse(),deckP[0]],C.muted,1.2,0.9,[5,4]);
+    const gl=P([HULL.bowX-0.2,-0.45,0.02]);if(gl){g.font="11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;g.textAlign="left";g.fillText("boat at average speed",gl[0]+4,gl[1]+12)}}
   // hull surfaces: sides then deck
   const W=xs.map(x=>[x,0,0]);
   for(const side of [deckP,deckS]){
@@ -1697,8 +1747,16 @@ function drawBoat3D(){
     const hz=norm(cross(dir,[0,0,1])),vz=cross(hz,dir),fe=st.feather*Math.PI/2;
     const bu=[vz[0]*Math.cos(fe)+hz[0]*Math.sin(fe),vz[1]*Math.cos(fe)+hz[1]*Math.sin(fe),vz[2]*Math.cos(fe)+hz[2]*Math.sin(fe)];
     const bq=[[OUT-BL,-0.55],[OUT,-1],[OUT,1],[OUT-BL,0.55]].map(([d,e])=>{const p=at(d);return B([p[0]+bu[0]*e*BW/2,p[1]+bu[1]*e*BW/2,p[2]+bu[2]*e*BW/2])});
-    poly(bq,C.blade,1);line([...bq,bq[0]],C.ink,0.8);
-    if(st.depth<-0.04){const c=at(OUT-BL/2),q=P([c[0]+dx,c[1],0]);if(q){g.strokeStyle=C.accent;g.globalAlpha=0.5;g.lineWidth=1;g.beginPath();g.ellipse(q[0],q[1],16,5,0,0,7);g.stroke();g.globalAlpha=1}}
+    const c=at(OUT-BL/2),wq=P([c[0]+dx,c[1],0]);
+    if(st.inWater){ // underwater: see-through blade and a ripple ring where the shaft enters the water
+      if(wq){g.fillStyle=C.accent;g.globalAlpha=0.16;g.beginPath();g.ellipse(wq[0],wq[1],22,7,0,0,7);g.fill();g.globalAlpha=1}
+      poly(bq,C.blade,0.45);line([...bq,bq[0]],C.accent,1.2,1,[3,2]);
+      if(wq){g.strokeStyle=C.accent;g.lineWidth=1.6;g.beginPath();g.ellipse(wq[0],wq[1],22,7,0,0,7);g.stroke();
+        g.globalAlpha=0.5;g.lineWidth=1;g.beginPath();g.ellipse(wq[0],wq[1],30,10,0,0,7);g.stroke();g.globalAlpha=1}
+    }else{          // in the air: solid blade and its shadow on the water
+      if(wq){g.fillStyle=C.ink;g.globalAlpha=0.12;g.beginPath();g.ellipse(wq[0],wq[1],12,4,0,0,7);g.fill();g.globalAlpha=1}
+      poly(bq,C.blade,1);line([...bq,bq[0]],C.ink,0.8);
+    }
     const pq=P(B(pin));if(pq){g.fillStyle=C.ink;g.beginPath();g.arc(pq[0],pq[1],2.5,0,7);g.fill()}
   }
   // the sculler (faces the stern) from the same joint positions the model used
@@ -1721,7 +1779,10 @@ function drawBoat3D(){
   if(lb)g.fillText("BOW",lb[0],lb[1]);if(ls)g.fillText("STERN",ls[0],ls[1]);
   const ph2=st.ph?(st.ph.drive!==undefined?"drive":"recovery"):"";
   $("hbAcc").innerHTML=(a>0?"+":"")+a.toFixed(1)+"<small style=\"font:500 11px var(--body);color:var(--muted)\"> m/s²"+(ph2?" · "+ph2:"")+"</small>";
-  $("hbDisp").textContent=((dx/E)*100>0?"+":"")+((dx/E)*100).toFixed(1)+" cm";
+  $("hbDisp").textContent=boatAbs?(isFinite(speed)?speed.toFixed(2)+" m/s":"–"):((wob*100>0?"+":"")+(wob*100).toFixed(1)+" cm");
+  $("hbDisp").title=boatAbs&&isFinite(speed)?fmtSplit(speed)+" /500 m":"";
+  const hb=$("hbBlade");hb.textContent=st.ph?(st.inWater?"in water":"out"):"–";
+  hb.className="sm "+(st.ph?(st.inWater?"inwater":"outwater"):"");
   $("hbPitch").textContent=(S.pitch.a[i]>0?"+":"")+S.pitch.a[i].toFixed(1)+"°";
   $("hbRoll").textContent=(S.set.a[i]>0?"+":"")+S.set.a[i].toFixed(1)+"°";
 }
@@ -1843,6 +1904,9 @@ for(const id of ["ctl","cSweep","cVert","cFeather","ctlB","cSurge","cVel","cSet"
   cv.addEventListener("wheel",e=>{e.preventDefault();camB.dist=Math.max(4,Math.min(20,camB.dist*Math.exp(e.deltaY*0.001)));dirty=true},{passive:false});
   document.querySelectorAll("[data-bview]").forEach(b=>b.onclick=()=>{Object.assign(camB,BVIEWS[b.dataset.bview]);dirty=true});
   $("boatExag").onchange=()=>dirty=true;
+  $("bmRel").onclick=()=>{boatAbs=false;boatMotionUi()};$("bmAbs").onclick=()=>{boatAbs=true;boatMotionUi()};
+  $("bAvgSpd").addEventListener("input",()=>dirty=true);
+  boatMotionUi();
 }
 let dragN=0;
 addEventListener("dragenter",e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes("Files")){dragN++;$("drop").hidden=false}});
