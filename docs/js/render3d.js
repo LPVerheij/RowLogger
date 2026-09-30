@@ -1,8 +1,8 @@
 "use strict";
 // 3D views of the oar and of the boat with its sculler.
 // ---------------------------------------------------------------- 3D view
-const cam={yaw:-125,pitch:28,dist:5.2,target:[0.55,0,0]};
-const VIEWS={persp:{yaw:-125,pitch:28,dist:5.2},top:{yaw:-90,pitch:89,dist:6},stern:{yaw:-90,pitch:12,dist:5.5}};
+const cam={yaw:-125,pitch:28,dist:5.8,target:[0.75,0,0]};
+const VIEWS={persp:{yaw:-125,pitch:28,dist:5.8},top:{yaw:-90,pitch:89,dist:6.6},stern:{yaw:-90,pitch:12,dist:6}};
 function draw3D(){
   const cv=$("c3d"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
   if(!S||!S.n)return;
@@ -16,8 +16,8 @@ function draw3D(){
     for(const p of pts){const q=P(p);if(!q){m=false;continue}m?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);m=true}g.stroke();g.globalAlpha=1};
   const wz=OAR.water;
   // water grid
-  for(let x=-1.5;x<=3.01;x+=0.5)line([[x,-3.5,wz],[x,3.5,wz]],C.water,1);
-  for(let y=-3.5;y<=3.51;y+=0.5)line([[-1.5,y,wz],[3,y,wz]],C.water,1);
+  for(let x=-1.5;x<=3.51;x+=0.5)line([[x,-3.5,wz],[x,3.5,wz]],C.water,1);
+  for(let y=-3.5;y<=3.51;y+=0.5)line([[-1.5,y,wz],[3.5,y,wz]],C.water,1);
   // hull (centre line at x=-0.85) and rigger
   const bow=S.catchSign, hx=-0.85, hull=[];
   for(let k=0;k<=40;k++){const y=-3.5+k*7/40,wd=0.24*Math.sqrt(Math.max(0,1-Math.pow(y/4.2,2)));hull.push([hx+wd,y,0.02])}
@@ -34,14 +34,22 @@ function draw3D(){
   for(let k=j;k<=i;k+=step){const v=oarVectors(S.abs.a[k]*D2R,S.vert.a[k]*D2R,S.feather.a[k]*D2R),c=OAR.outboard-OAR.bladeLen/2;
     const p=[v.s[0]*c,v.s[1]*c,v.s[2]*c];if(prev)line([prev,p],C.blade,2,(k-j)/(i-j+1));prev=p}
   // oar
-  const v=oarVectors(S.abs.a[i]*D2R,S.vert.a[i]*D2R,S.feather.a[i]*D2R),s=v.s,u=v.u;
+  // Feathering always turns the blade's top edge toward the bow (the top of the handle rolls toward
+  // the rower's chest), so the driving face ends up facing up. Draw the measured amount that way,
+  // whatever sign the sensor's mounting gives the feather angle.
+  const fd=Math.abs(S.feather.a[i])*bow*D2R;
+  const v=oarVectors(S.abs.a[i]*D2R,S.vert.a[i]*D2R,fd),s=v.s,u=v.u;
   const at=d=>[s[0]*d,s[1]*d,s[2]*d];
   line([at(-OAR.inboard),at(OAR.outboard-OAR.bladeLen)],C.ink,3.2);
   line([at(-OAR.inboard),at(-OAR.inboard+0.3)],C.accent,6);
   const b0=OAR.outboard-OAR.bladeLen,b1=OAR.outboard,hw=OAR.bladeW/2;
   const quad=[[b0,-hw*0.55],[b1,-hw],[b1,hw],[b0,hw*0.55]].map(([d,e])=>[s[0]*d+u[0]*e,s[1]*d+u[1]*e,s[2]*d+u[2]*e]);
   const qq=quad.map(P);
-  if(qq.every(Boolean)){g.fillStyle=C.blade;g.beginPath();qq.forEach((q,k)=>k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();g.strokeStyle=C.ink;g.lineWidth=1;g.stroke()}
+  if(qq.every(Boolean)){g.fillStyle=C.blade;g.beginPath();qq.forEach((q,k)=>k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();
+    // driving face (faces the stern when squared, up when feathered) in the blade colour, the back darker
+    const n=cross(s,u).map(x=>x*bow),bc=at(OAR.outboard-OAR.bladeLen/2);
+    if(dot(n,[eye[0]-bc[0],eye[1]-bc[1],eye[2]-bc[2]])<0){g.fillStyle=C.ink;g.globalAlpha=0.45;g.fill();g.globalAlpha=1}
+    g.strokeStyle=C.ink;g.lineWidth=1;g.stroke()}
   const pin=P([0,0,0]);if(pin){g.fillStyle=C.ink;g.beginPath();g.arc(pin[0],pin[1],4,0,7);g.fill()}
   $("hSweep").textContent=fmtA(S.abs.a[i]);$("hVert").textContent=fmtA(S.vert.a[i]);$("hFeather").textContent=Math.abs(S.feather.a[i]).toFixed(0)+"°";
 }
@@ -202,14 +210,18 @@ function drawBoat3D(){
     const bu=[vz[0]*Math.cos(fe)+hz[0]*Math.sin(fe),vz[1]*Math.cos(fe)+hz[1]*Math.sin(fe),vz[2]*Math.cos(fe)+hz[2]*Math.sin(fe)];
     const bq=[[OUT-BL,-0.55],[OUT,-1],[OUT,1],[OUT-BL,0.55]].map(([d,e])=>{const p=at(d);return B([p[0]+bu[0]*e*BW/2,p[1]+bu[1]*e*BW/2,p[2]+bu[2]*e*BW/2])});
     const c=at(OUT-BL/2),wq=P([c[0]+dx,c[1],0]);
+    // driving face: toward the stern when squared, up when feathered; is it the side we see?
+    const nb=[-hz[0]*Math.cos(fe)+vz[0]*Math.sin(fe),-hz[1]*Math.cos(fe)+vz[1]*Math.sin(fe),-hz[2]*Math.cos(fe)+vz[2]*Math.sin(fe)];
+    const cw=B(c),nw=B([c[0]+nb[0],c[1]+nb[1],c[2]+nb[2]]);
+    const back=dot([nw[0]-cw[0],nw[1]-cw[1],nw[2]-cw[2]],[eye[0]-cw[0],eye[1]-cw[1],eye[2]-cw[2]])<0;
     if(st.inWater){ // underwater: see-through blade and a ripple ring where the shaft enters the water
       if(wq){g.fillStyle=C.accent;g.globalAlpha=0.16;g.beginPath();g.ellipse(wq[0],wq[1],22,7,0,0,7);g.fill();g.globalAlpha=1}
-      poly(bq,C.blade,0.45);line([...bq,bq[0]],C.accent,1.2,1,[3,2]);
+      poly(bq,C.blade,0.45);if(back)poly(bq,C.ink,0.25);line([...bq,bq[0]],C.accent,1.2,1,[3,2]);
       if(wq){g.strokeStyle=C.accent;g.lineWidth=1.6;g.beginPath();g.ellipse(wq[0],wq[1],22,7,0,0,7);g.stroke();
         g.globalAlpha=0.5;g.lineWidth=1;g.beginPath();g.ellipse(wq[0],wq[1],30,10,0,0,7);g.stroke();g.globalAlpha=1}
     }else{          // in the air: solid blade and its shadow on the water
       if(wq){g.fillStyle=C.ink;g.globalAlpha=0.12;g.beginPath();g.ellipse(wq[0],wq[1],12,4,0,0,7);g.fill();g.globalAlpha=1}
-      poly(bq,C.blade,1);line([...bq,bq[0]],C.ink,0.8);
+      poly(bq,C.blade,1);if(back)poly(bq,C.ink,0.45);line([...bq,bq[0]],C.ink,0.8);
     }
     const pq=P(B(pin));if(pq){g.fillStyle=C.ink;g.beginPath();g.arc(pq[0],pq[1],2.5,0,7);g.fill()}
   }

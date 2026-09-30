@@ -50,7 +50,7 @@
     <a class="start" href="#/examples">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12M8 11l5 3-5 3z"/></svg>
       <b>Try an example</b>
-      <span>An oar recording and four boat curves, from elite to beginner.</span>
+      <span>A sweep oar and four single-scull boat curves, from elite to beginner.</span>
     </a>
   </div>
   <div class="card session" id="homeSession">
@@ -386,6 +386,7 @@
       <li><b>Measured:</b> the oar's sweep, height and feather (oar sensor); the boat's fore-aft acceleration, pitch and roll (boat sensor). Speed change within the stroke comes from integrating the acceleration.</li>
       <li><b>Assumed:</b> the boat's average speed. Without GPS the sensor only knows how the speed changes, so absolute movement uses the speed you set (or the model's speed for the examples).</li>
       <li><b>Modelled:</b> the sculler in the 3D boat view. For the examples it replays the exact simulated technique; for your recordings it is a standard legs-trunk-arms sequence timed to the detected catch and finish, not your actual body movement.</li>
+      <li><b>Blades in 3D:</b> the driving face is drawn in orange and the back darker. At the release the top edge turns toward the bow (the top of the handle rolls toward the chest), so on the recovery the driving face points up; squaring turns it back. The oar view draws the measured feather angle this way round, whichever way the sensor is mounted.</li>
       <li><b>Animation only:</b> the catch delay and the exaggeration. They change the picture, not the data or the numbers.</li>
     </ul>
   </div>

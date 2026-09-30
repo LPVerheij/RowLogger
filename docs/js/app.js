@@ -93,12 +93,12 @@ function sessionUi(){
 
 // ---------------------------------------------------------------- examples page
 let exKey="oar";
-const EXAMPLE_LIST=[["oar","Oar",{name:"Oar · single sculler",
-  rates:[20,28,34],note:"A sculling oar with the sensor on the shaft, zeroed with three taps at the start: sweep, blade height and feather through every stroke."}]]
+const EXAMPLE_LIST=[["oar","Oar",{name:"Oar · sweep oar",
+  rates:[20,28,34],note:"One rower's oar in a sweep boat, with the sensor on the shaft, zeroed with three taps at the start: sweep angle, blade height and feather through every stroke."}]]
   .concat(Object.entries(BOAT_EXAMPLES).map(([k,v])=>[k,"Boat",v]));
 function loadExample(k){
   if(!k)return;exKey=k;disconnect();
-  if(k==="oar")loadColumns(makeDemo(),"Oar · single sculler","demo");
+  if(k==="oar")loadColumns(makeDemo(),"Oar · sweep oar","demo");
   else{loadColumns(makeBoatDemo(k),BOAT_EXAMPLES[k].name,"demo");refForExample(k)}
   markExample(k);
 }
@@ -127,7 +127,7 @@ function stepExample(d){
   switchExample(keys[(i+d+keys.length)%keys.length]);
 }
 // short names for the switcher
-const EX_SHORT={oar:"Oar",front:"Front-loaded",late:"Late peak",hump:"Mid-drive hump",amateur:"Amateur"};
+const EX_SHORT={oar:"Sweep oar",front:"Front-loaded",late:"Late peak",hump:"Mid-drive hump",amateur:"Amateur"};
 function buildExamples(){
   for(const [k,kind,ex] of EXAMPLE_LIST){
     const c=document.createElement("article");c.className="card excard";c.dataset.ex=k;

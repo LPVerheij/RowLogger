@@ -2,7 +2,7 @@
 // RowLog viewer: shared helpers and the oar and boat signal processing.
 const $ = id => document.getElementById(id);
 const D2R = Math.PI/180, R2D = 180/Math.PI;
-const OAR = {inboard:0.88, outboard:2.02, bladeLen:0.5, bladeW:0.22, water:-0.14};
+const OAR = {inboard:1.15, outboard:2.59, bladeLen:0.55, bladeW:0.21, water:-0.14};   // sweep oar, for drawing only
 
 // ---------------------------------------------------------------- buffers
 class Buf{

@@ -97,7 +97,7 @@ Open it from GitHub Pages (below) or open `docs/index.html` in Chrome or Edge.
 | **Home** | open a recording, connect the sensor or try an example; what's loaded now |
 | **Analysis** | the loaded session in three views: *Overview* (stroke profile or blade path, and the numbers), *3D* (the oar, or the boat with its sculler), *Over time* (the whole session as charts). The player at the bottom plays it back. |
 | **Device** | connect over Bluetooth or USB, oar/boat mode, SD logging, sonification and the device speaker |
-| **Examples** | synthetic oar and boat sessions from a physics model of a sculler, each technique producing its own boat-acceleration curve, with links to Kleshnev's measured curves |
+| **Examples** | a synthetic sweep oar, and single-scull boat sessions from a physics model of a sculler, each technique producing its own boat-acceleration curve, with links to Kleshnev's measured curves |
 | **Settings** | which sensor recorded the file, oar mounting and processing, boat axis, light or dark |
 | **Help** | mounting, zeroing, what the numbers mean, what is measured and what is modelled, file formats |
 
