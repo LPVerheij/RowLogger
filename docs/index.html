@@ -149,7 +149,7 @@
           <div class="seg" role="group" aria-label="Camera"><span>Camera</span><button data-bview="persp">3/4</button><button data-bview="side">Side</button><button data-bview="stern">Stern</button><button data-bview="top">Top</button></div>
           <div class="seg" role="group" aria-label="Boat movement"><span>Movement</span><button id="bmRel" aria-pressed="true">Relative</button><button id="bmAbs" aria-pressed="false">Absolute</button></div>
           <label id="bAvgLbl" hidden>Average speed <input type="number" id="bAvgSpd" value="4.0" min="1" max="7" step="0.1" aria-describedby="bNote"> m/s</label>
-          <label title="Holds the blades above the water for this long after the oar reverses. Animation only: the data isn't changed.">Catch delay <input type="range" id="catchDelay" min="0" max="250" step="10" value="0" aria-describedby="bNote"><output id="catchDelayOut">0 ms</output></label>
+          <label title="Starts the rower's drive this long before the catch marked in the graphs, while the blades are still above the water: a late catch. The catch stays where the graphs put it. Animation only: the data isn't changed.">Catch delay <input type="range" id="catchDelay" min="0" max="250" step="10" value="0" aria-describedby="bNote"><output id="catchDelayOut">0 ms</output></label>
           <label>Exaggerate <select id="boatExag"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="10">10×</option></select></label>
         </div>
         <p class="bcap" id="bNote"></p>
@@ -385,8 +385,9 @@
     <ul>
       <li><b>Measured:</b> the oar's sweep, height and feather (oar sensor); the boat's fore-aft acceleration, pitch and roll (boat sensor). Speed change within the stroke comes from integrating the acceleration.</li>
       <li><b>Assumed:</b> the boat's average speed. Without GPS the sensor only knows how the speed changes, so absolute movement uses the speed you set (or the model's speed for the examples).</li>
-      <li><b>Modelled:</b> the sculler in the 3D boat view. For the examples it replays the exact simulated technique; for your recordings it is a standard legs-trunk-arms sequence timed to the detected catch and finish, not your actual body movement.</li>
+      <li><b>Modelled:</b> the sculler in the 3D boat view. For the examples it replays the simulated technique, timed to the catches and finishes in the graphs; for your recordings it is a standard legs-trunk-arms sequence timed to the detected catch and finish, not your actual body movement.</li>
       <li><b>Blades in 3D:</b> the driving face is drawn in orange and the back darker. At the release the top edge turns toward the bow (the top of the handle rolls toward the chest), so on the recovery the driving face points up; squaring turns it back. The oar view draws the measured feather angle this way round, whichever way the sensor is mounted.</li>
+      <li><b>Timing in 3D:</b> the blades are covered at the catch and clear of the water at the finish, exactly where the graphs mark them. The catch delay starts the rower's drive earlier while the blades are still out (a late catch); the catch itself doesn't move.</li>
       <li><b>Animation only:</b> the catch delay and the exaggeration. They change the picture, not the data or the numbers.</li>
     </ul>
   </div>

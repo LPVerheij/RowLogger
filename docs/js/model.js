@@ -202,7 +202,7 @@ function makeBoatDemo(kind="front"){
   const fs=200,T=90,n=fs*T,out={t:new Float64Array(n),n,mode:"boat",tech:kind,axis:"-Z"};   // sensor -Z points to the bow
   for(const k of ["ax","ay","az","gx","gy","gz"])out[k]=new Float32Array(n);
   const sim=simulateRowing(kind,fs,T,{rates:ex.rates,vari:ex.var});
-  out.sp=sim.sp;                                 // stroke phase, so the 3D sculler moves as simulated
+  out.sp=sim.sp;                                 // the model's own stroke phase (the 3D view times the sculler to the detected catches)
   // true boat speed from the model, for the absolute view: distance covered (pos) and a smooth
   // "average speed" distance (base, speed averaged over ~3 s) to scale the in-stroke part by
   out.speed=sim.vel;

@@ -43,11 +43,11 @@ function draw3D(){
   line([at(-OAR.inboard),at(OAR.outboard-OAR.bladeLen)],C.ink,3.2);
   line([at(-OAR.inboard),at(-OAR.inboard+0.3)],C.accent,6);
   const b0=OAR.outboard-OAR.bladeLen,b1=OAR.outboard,hw=OAR.bladeW/2;
-  const quad=[[b0,-hw*0.55],[b1,-hw],[b1,hw],[b0,hw*0.55]].map(([d,e])=>[s[0]*d+u[0]*e,s[1]*d+u[1]*e,s[2]*d+u[2]*e]);
+  const quad=BLADE_SHAPE.map(([a,e])=>{const d=b0+a*(b1-b0),w=e*2*hw;return [s[0]*d+u[0]*w,s[1]*d+u[1]*w,s[2]*d+u[2]*w]});
   const qq=quad.map(P);
   if(qq.every(Boolean)){g.fillStyle=C.blade;g.beginPath();qq.forEach((q,k)=>k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();
     // driving face (faces the stern when squared, up when feathered) in the blade colour, the back darker
-    const n=cross(s,u).map(x=>x*bow),bc=at(OAR.outboard-OAR.bladeLen/2);
+    const n=cross(s,u).map(x=>x*bow),bm=at(OAR.outboard-OAR.bladeLen/2),bc=[bm[0]-u[0]*hw,bm[1]-u[1]*hw,bm[2]-u[2]*hw];
     if(dot(n,[eye[0]-bc[0],eye[1]-bc[1],eye[2]-bc[2]])<0){g.fillStyle=C.ink;g.globalAlpha=0.45;g.fill();g.globalAlpha=1}
     g.strokeStyle=C.ink;g.lineWidth=1;g.stroke()}
   const pin=P([0,0,0]);if(pin){g.fillStyle=C.ink;g.beginPath();g.arc(pin[0],pin[1],4,0,7);g.fill()}
@@ -87,46 +87,58 @@ const camB={yaw:-118,pitch:20,dist:9.2,target:[-0.2,0,0.3]};
 const BVIEWS={persp:{yaw:-118,pitch:20,dist:9.2},side:{yaw:-90,pitch:5,dist:8.8},stern:{yaw:180,pitch:14,dist:6},top:{yaw:-90,pitch:89,dist:9.5}};
 const HULL={len:7.8,beam:0.2,sheer:0.14,keel:-0.1,bowX:3.7};
 
-function strokePhase(i){ // {drive:0..1} during the drive, {rec:0..1} during the recovery, or null
+// Catch, finish and next catch (s) of the stroke around sample i, as the graphs mark them.
+// tf2 is the finish after the next catch (the body's next drive can start before that catch).
+function strokeTimesAt(i){
   if(!S.strokes.length)return null;
   const t=S.t.a,k=S.strokeAt(i);if(k<0)return null;
   const s=S.strokes[k];
-  if(i<s.n&&s.valid){
-    if(i<s.f)return {drive:(t[i]-t[s.c])/Math.max(1e-3,t[s.f]-t[s.c])};
-    return {rec:(t[i]-t[s.f])/Math.max(1e-3,t[s.n]-t[s.f])};
-  }
-  // after the last complete stroke (live): repeat its timing from the latest catch
+  if(s.valid&&i<s.n){const nx=S.strokes[k+1];
+    return {tc:t[s.c],tf:t[s.f],tn:t[s.n],tf2:nx&&nx.valid?t[nx.f]:t[s.n]+(t[s.f]-t[s.c])}}
+  // live, after the last complete stroke: repeat its timing from the latest catch
   const last=S.catches.length?S.catches[S.catches.length-1]:-1;if(last<0||!s.valid)return null;
-  const T=t[s.n]-t[s.c],dr=t[s.f]-t[s.c],e=t[i]-t[last];
-  if(e>T*1.3)return null;
-  return e<dr?{drive:e/dr}:{rec:Math.min(1,(e-dr)/Math.max(1e-3,T-dr))};
+  const T=t[s.n]-t[s.c],dr=t[s.f]-t[s.c],c0=t[last];
+  if(t[i]-c0>T*1.3)return null;
+  return {tc:c0,tf:c0+dr,tn:c0+T,tf2:c0+T+dr};
 }
-// Pose of the 3D sculler: examples replay the exact simulated technique; recorded sessions use a
-// standard legs-trunk-arms sequence timed to the detected catch and finish.
-// length of the current drive (s): exact for the examples (from the model's stroke phase),
-// from the detected catch and finish otherwise
-function driveDuration(i,u){
-  const t=S.t.a;
-  if(src&&src.sp&&src.n===S.n&&u>0.02){let j=i;while(j>0&&src.sp[j-1]<=src.sp[j]&&src.sp[j-1]<1)j--;return Math.max(0.3,(t[i]-t[j])/u)}
-  const k=S.strokeAt(i);return k>=0&&S.strokes[k].valid?t[S.strokes[k].f]-t[S.strokes[k].c]:1;
-}
+// The blades follow the catch and finish in the graphs exactly: covered at the catch, clear of the
+// water at the finish. The artificial catch delay (animation only) starts the rower's drive that
+// much earlier, so the oar already turns while the blade is still above the water (a late catch);
+// the catch itself stays where the graphs put it.
+// The sculler's pose: examples replay the simulated technique, recorded sessions a standard
+// legs-trunk-arms sequence, both timed to those catches and finishes.
 const catchDelayS=()=>(+($("catchDelay")&&$("catchDelay").value)||0)/1000;
+const BLADE_Z={buried:-0.03,clear:0.27,skim:0.1};  // height of the blade's top edge (= shaft line), m
 function scullerState(i){
-  let tech=TECH.generic,ph=null;
-  if(src&&src.sp&&src.n===S.n){tech=TECH[src.tech]||tech;const c=src.sp[i];ph=c<1?{drive:c}:{rec:Math.min(1,c-1)}}
-  else ph=strokePhase(i);
-  const pose=ph?techPose(tech,ph):{legs:0.45,trunk:4,arms:0,lmin:tech.body.lmin};
-  // blade: in the water from entry to exit of the force curve; the artificial catch delay (animation
-  // only) holds it above the water for that long after the oar reverses. Feathered quickly after
-  // the release (~0.1 s), squared again before the catch.
-  let depth=0.03,feather=1;
-  if(ph&&ph.drive!==undefined){const f=tech.force,u=ph.drive;
-    const dT=driveDuration(i,u);
-    const din=f.in+catchDelayS()/Math.max(0.3,dT);              // entry, as a fraction of the drive
-    depth=-0.12*smooth5((u-(din-0.03))/0.05)*(1-smooth5((u-f.out)/0.04))+0.1*(1-smooth5((u-(din-0.03))/0.05));feather=0}
-  else if(ph){const q=ph.rec;depth=0.16*Math.sin(Math.PI*Math.min(1,q/0.97));feather=smooth5((q-0.005)/0.06)*(1-smooth5((q-0.78)/0.16))}
-  return {tech,ph,pose,J:bodyJoints(pose),depth,feather,inWater:!!(ph&&ph.drive!==undefined&&depth<-0.03)};
+  const tech=(src&&src.tech&&src.n===S.n&&TECH[src.tech])||TECH.generic;
+  const T=strokeTimesAt(i),t=S.t.a[i],D=catchDelayS(),Z=BLADE_Z;
+  const clamp=x=>Math.max(0,Math.min(1,x));
+  if(!T){const pose={legs:0.45,trunk:4,arms:0,lmin:tech.body.lmin};
+    return {tech,ph:null,pose,J:bodyJoints(pose),depth:Z.skim,feather:1,inWater:false}}
+  // body: the drive runs from D before the catch to the finish, the recovery from the finish to
+  // D before the next catch
+  let ph;
+  if(t>=T.tn-D)ph={drive:clamp((t-(T.tn-D))/Math.max(0.2,T.tf2-(T.tn-D)))};
+  else if(t>=T.tf)ph={rec:clamp((t-T.tf)/Math.max(0.2,T.tn-D-T.tf))};
+  else ph={drive:clamp((t-(T.tc-D))/Math.max(0.2,T.tf-(T.tc-D)))};
+  const pose=techPose(tech,ph);
+  // blade: squared it hangs below the shaft, so it has to be lifted clear before it feathers
+  const entry=tc0=>smooth5((t-(tc0-0.05))/0.05);           // 0 → 1 over the 50 ms up to a catch
+  let depth,feather;
+  if(t<T.tf){                                               // drive: in at the catch, out at the finish
+    depth=Z.buried+(Z.clear-Z.buried)*((1-entry(T.tc))+smooth5((t-(T.tf-0.09))/0.09));feather=0;
+  }else{                                                    // recovery
+    const R=T.tn-T.tf,q=(t-T.tf)/R;
+    const qSq=Math.min(0.92,(T.tn-D-T.tf)/R);               // squared by the time the body reaches the catch
+    feather=smooth5((t-T.tf)/0.07)*(1-smooth5((q-(qSq-0.14))/0.14));
+    depth=Z.clear+(Z.skim-Z.clear)*smooth5((t-T.tf)/0.25)*(1-smooth5((q-(qSq-0.3))/0.16));
+    depth+=(Z.buried-depth)*entry(T.tn);
+  }
+  return {tech,ph,pose,J:bodyJoints(pose),depth,feather,inWater:t>=T.tc&&t<T.tf};
 }
+// Blade outline of a big ("hatchet") blade: the top edge runs on in line with the shaft, the blade
+// hangs below it. [along the blade 0 = neck → 1 = tip, across 0 = top edge → -1 = bottom edge]
+const BLADE_SHAPE=[[0,0],[1,0],[0.98,-0.5],[0.92,-0.92],[0.78,-1],[0.55,-0.93],[0.3,-0.68],[0.1,-0.36],[0,-0.18]];
 function drawBoat3D(){
   const cv=$("c3dB"),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);
   if(!S||!S.n)return;
@@ -192,7 +204,7 @@ function drawBoat3D(){
   }
   // sculler + oars: the handle position comes from the body, the oar angle from the handle
   const st=scullerState(i),J=st.J;
-  const ps=sweepFromHand(J.hand[0]),IN=RIG.IN,OUT=RIG.OUT,BL=RIG.BLADE,BW=0.22;
+  const ps=sweepFromHand(J.hand[0]),IN=RIG.IN,OUT=RIG.OUT,BL=RIG.BLADE,BW=0.24;
   let handles=[];
   for(const sg of [1,-1]){
     const pin=[0,sg*pinY,pinZ];
@@ -208,8 +220,8 @@ function drawBoat3D(){
     let vz=cross(hz,dir);if(vz[2]<0)vz=vz.map(x=>-x);
     const fe=st.feather*Math.PI/2;
     const bu=[vz[0]*Math.cos(fe)+hz[0]*Math.sin(fe),vz[1]*Math.cos(fe)+hz[1]*Math.sin(fe),vz[2]*Math.cos(fe)+hz[2]*Math.sin(fe)];
-    const bq=[[OUT-BL,-0.55],[OUT,-1],[OUT,1],[OUT-BL,0.55]].map(([d,e])=>{const p=at(d);return B([p[0]+bu[0]*e*BW/2,p[1]+bu[1]*e*BW/2,p[2]+bu[2]*e*BW/2])});
-    const c=at(OUT-BL/2),wq=P([c[0]+dx,c[1],0]);
+    const bq=BLADE_SHAPE.map(([a,e])=>{const p=at(OUT-BL+a*BL);return B([p[0]+bu[0]*e*BW,p[1]+bu[1]*e*BW,p[2]+bu[2]*e*BW])});
+    const c0=at(OUT-BL/2),c=[c0[0]-bu[0]*BW/2,c0[1]-bu[1]*BW/2,c0[2]-bu[2]*BW/2],wq=P([c[0]+dx,c[1],0]);
     // driving face: toward the stern when squared, up when feathered; is it the side we see?
     const nb=[-hz[0]*Math.cos(fe)+vz[0]*Math.sin(fe),-hz[1]*Math.cos(fe)+vz[1]*Math.sin(fe),-hz[2]*Math.cos(fe)+vz[2]*Math.sin(fe)];
     const cw=B(c),nw=B([c[0]+nb[0],c[1]+nb[1],c[2]+nb[2]]);
@@ -251,7 +263,7 @@ function drawBoat3D(){
   g.font="600 11px "+getComputedStyle(document.body).fontFamily;g.fillStyle=C.muted;g.textAlign="center";
   const lb=P([HULL.bowX+0.5+dx,0,0.2]),ls=P([HULL.bowX-HULL.len-0.4+dx,0,0.2]);
   if(lb)g.fillText("BOW",lb[0],lb[1]);if(ls)g.fillText("STERN",ls[0],ls[1]);
-  const ph2=st.ph?(st.ph.drive!==undefined?"drive":"recovery"):"";
+  const ph2=st.ph?(st.inWater?"drive":"recovery"):"";
   $("hbAcc").innerHTML=(a>0?"+":"")+a.toFixed(1)+"<small style=\"font:500 11px var(--body);color:var(--muted)\"> m/s²"+(ph2?" · "+ph2:"")+"</small>";
   $("hbDisp").textContent=boatAbs?(isFinite(speed)?speed.toFixed(2)+" m/s":"–"):((wob*100>0?"+":"")+(wob*100).toFixed(1)+" cm");
   $("hbDisp").title=boatAbs&&isFinite(speed)?fmtSplit(speed)+" /500 m":"";
