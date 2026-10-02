@@ -6,6 +6,16 @@ how-to; this file is the why and the context. Keep it up to date when something 
 
 ---
 
+## 0. Purpose and priorities
+
+- **Goal of the whole project: gaining insight into rowing mechanics.** What the boat, oars and
+  rowers actually do through the stroke, and why.
+- **Ultimate goal: a coaching tool.** Something a coach and crew can use to see and improve
+  technique.
+- **Priority in brainstorming and design: bang-for-buck engineering.** Prefer the option that gives
+  the most insight per euro and per hour of work. Cheap modules, simple builds, reuse of what
+  exists. Only go for expensive or complex solutions when the cheaper one can't answer the question.
+
 ## 1. What it is
 
 A DIY rowing measurement system, built by a TU Delft student who rows.
