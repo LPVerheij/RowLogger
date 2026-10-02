@@ -16,6 +16,7 @@ docs/index.html              RowLog Viewer: the page, with all its pages as sect
 docs/css/app.css             its styles (colours, desktop and phone layout)
 docs/js/                     its code (see below)
 docs/figures/                images for the viewer's "Reference figure" panel (see below)
+KNOWLEDGE.md                 project background: decisions, protocols, domain knowledge, roadmap
 ```
 
 The viewer lives in `docs/` so GitHub Pages can publish it directly.
